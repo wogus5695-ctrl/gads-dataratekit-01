@@ -117,4 +117,8 @@ export const INDEXABLE_ROUTES = [
   '/upload-time-calculator',
   '/file-transfer-time-calculator',
   '/mbps-to-mbs',
+  '/about',
+  '/contact',
+  '/privacy',
+  '/terms',
 ] as const;

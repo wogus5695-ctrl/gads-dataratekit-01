@@ -47,6 +47,20 @@
   color: var(--text-muted);
 }
 
+.navGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  align-items: center;
+}
+
+@media (min-width: 640px) {
+  .navGroups {
+    align-items: flex-end;
+    text-align: right;
+  }
+}
+
 .nav {
   display: flex;
   flex-wrap: wrap;
@@ -63,12 +77,39 @@
 
 .navLink {
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  font-weight: 500;
+  color: var(--text-primary);
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
 .navLink:hover {
   color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.navSecondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.875rem;
+  justify-content: center;
+  align-items: center;
+}
+
+@media (min-width: 640px) {
+  .navSecondary {
+    justify-content: flex-end;
+  }
+}
+
+.navLinkSecondary {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.navLinkSecondary:hover {
+  color: var(--text-primary);
   text-decoration: underline;
 }
