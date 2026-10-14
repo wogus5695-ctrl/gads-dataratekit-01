@@ -1,0 +1,327 @@
+.converterContainer {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 1.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 2rem;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 640px) {
+  .converterContainer {
+    padding: 1rem;
+    margin-top: 1rem;
+    border-radius: var(--radius-md);
+  }
+}
+
+.converterGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+@media (min-width: 640px) {
+  .converterGrid {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}
+
+.converterField {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.fieldHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.fullLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.unitHint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.inputWrapper {
+  display: flex;
+  position: relative;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.inputWrapper:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px var(--border-focus);
+}
+
+.inputWrapperError {
+  border-color: var(--color-error);
+}
+
+.inputWrapperError:focus-within {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 1px var(--color-error);
+}
+
+.numberInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0.625rem 0.875rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.unitBadge {
+  min-height: 48px;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: var(--bg-subtle);
+  border-left: 1px solid var(--border-subtle);
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.bidirectionalHelp {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 0.875rem;
+}
+
+.arrowDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  user-select: none;
+}
+
+.arrowDesktop {
+  display: none;
+}
+
+.arrowMobile {
+  display: inline;
+}
+
+@media (max-width: 639px) {
+  .arrowDivider {
+    padding: 0.125rem 0;
+  }
+}
+
+@media (min-width: 640px) {
+  .arrowDivider {
+    align-self: center;
+    padding-top: 1.25rem;
+  }
+  .arrowDesktop {
+    display: inline;
+  }
+  .arrowMobile {
+    display: none;
+  }
+}
+
+.errorMessage {
+  font-size: 0.75rem;
+  color: var(--color-error);
+  margin-top: 0.125rem;
+}
+
+/* Relation Display Banner */
+.relationBanner {
+  margin-top: 1.25rem;
+  padding: 0.875rem 1rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.relationText {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 640px) {
+  .relationText {
+    font-size: 1.125rem;
+  }
+}
+
+.relationFormula {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Actions Row */
+.actionsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.actionButton {
+  min-height: 36px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: all 0.15s ease;
+}
+
+.actionButton:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.resetButton {
+  color: var(--text-muted);
+  border-color: transparent;
+  background: transparent;
+}
+
+.resetButton:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+  border-color: var(--border-subtle);
+}
+
+.statusNotice {
+  font-size: 0.75rem;
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+/* Common Reference Table Section */
+.commonReferenceCard {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .commonReferenceCard {
+    padding: 1rem;
+    border-radius: var(--radius-md);
+  }
+}
+
+.referenceTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+}
+
+.referenceSubtitle {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 0.875rem;
+}
+
+.referenceGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.375rem;
+}
+
+@media (min-width: 480px) {
+  .referenceGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.referenceRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-subtle);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.referenceRow:hover {
+  background: var(--bg-accent);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.referenceRow:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.referenceLeft {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.referenceEquals {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin: 0 0.25rem;
+}
+
+.referenceRight {
+  font-weight: 600;
+  color: var(--color-primary);
+}
