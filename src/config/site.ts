@@ -53,12 +53,25 @@ export function validateOrigin(input: string | undefined | null): string | null 
 
 /**
  * Resolves the configured production origin.
- * Checks process.env.NEXT_PUBLIC_SITE_URL or process.env.SITE_URL.
- * Returns null if not set or invalid.
+ * Uses process.env.SITE_URL as the single authoritative source of truth.
+ *
+ * Fail-safe:
+ * In Vercel production deployment (process.env.VERCEL_ENV === 'production'),
+ * an unconfigured or invalid SITE_URL will throw a descriptive build error to
+ * prevent deploying pages with empty canonicals or empty sitemaps.
  */
 export function getProductionOrigin(): string | null {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
-  return validateOrigin(envUrl);
+  const envUrl = process.env.SITE_URL;
+  const validated = validateOrigin(envUrl);
+
+  if (process.env.VERCEL_ENV === 'production' && !validated) {
+    throw new Error(
+      '[DataRateKit SEO Fail-Safe] VERCEL_ENV=production detected but SITE_URL is missing or invalid. ' +
+        'Expected format: "https://dataratekit.com". Please configure SITE_URL in Vercel project environment variables.'
+    );
+  }
+
+  return validated;
 }
 
 /**
