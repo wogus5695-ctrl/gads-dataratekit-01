@@ -67,7 +67,7 @@ export function getProductionOrigin(): string | null {
   if (process.env.VERCEL_ENV === 'production' && !validated) {
     throw new Error(
       '[DataRateKit SEO Fail-Safe] VERCEL_ENV=production detected but SITE_URL is missing or invalid. ' +
-        'Expected format: "https://dataratekit.com". Please configure SITE_URL in Vercel project environment variables.'
+        'Expected format: "https://www.dataratekit.com". Please configure SITE_URL in Vercel project environment variables.'
     );
   }
 
