@@ -59,7 +59,7 @@ export default function ContactPage() {
         <h2 className={styles.sectionTitle}>General Inquiries and Policy Questions</h2>
         <div className={styles.prose}>
           <p>
-            For privacy inquiries, DMCA notices, or partnership questions, please send an email to the address listed above. We strive to review and respond to legitimate inquiries within 2 to 3 business days.
+            For privacy inquiries, DMCA notices, or general questions, please send an email to the address listed above.
           </p>
         </div>
       </section>

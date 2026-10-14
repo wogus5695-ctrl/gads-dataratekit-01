@@ -32,7 +32,7 @@ export default function AboutPage() {
         <h2 className={styles.sectionTitle}>Our Mission</h2>
         <div className={styles.prose}>
           <p>
-            DataRateKit was created to provide straightforward, lightning-fast, and mathematically accurate calculation utilities for anyone working with digital data transfers and network bandwidth.
+            DataRateKit was created to provide straightforward, transparent, and mathematically accurate calculation utilities for anyone working with digital data transfers and network bandwidth.
           </p>
           <p>
             Whether you are downloading a video game update, uploading 4K video footage to cloud storage, copying massive datasets across external solid-state drives (SSDs), or converting between telecom megabits (Mbps) and operating system megabytes (MB/s), DataRateKit delivers instant clarity without paywalls, sign-ups, or invasive tracking.
@@ -74,7 +74,7 @@ export default function AboutPage() {
               <strong>Exact Unit Mathematics:</strong> 1 byte is strictly calculated as 8 bits. Standard decimal units (KB, MB, GB, TB) use powers of 10 (1,000 multiplier), while binary units (KiB, MiB, GiB, TiB) use powers of 2 (1,024 multiplier).
             </li>
             <li>
-              <strong>Theoretical vs. Real-World Efficiency:</strong> Digital communications rarely operate at 100% wire capacity. We provide an optional real-world overhead toggle (90% throughput) to reflect TCP/IP packet framing, Wi-Fi interference, and server latency.
+              <strong>Theoretical vs. Planning Assumptions:</strong> Some calculators include an optional 90% throughput planning assumption so users can compare an ideal theoretical calculation with a more conservative estimate. This assumption helps illustrate the impact of factors such as TCP/IP packet framing and network traffic, but it is a planning guideline rather than a guarantee of actual network efficiency.
             </li>
           </ul>
         </div>

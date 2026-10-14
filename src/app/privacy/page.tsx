@@ -64,20 +64,20 @@ export default function PrivacyPolicyPage() {
         <h2 className={styles.sectionTitle}>4. Google AdSense and Third-Party Advertising Disclosures</h2>
         <div className={styles.prose}>
           <p>
-            To keep our utility free and accessible to everyone, DataRateKit may display third-party advertisements served by Google AdSense and its advertising partners.
+            To keep our utility free and accessible to everyone, DataRateKit plans to display third-party advertisements. If Google AdSense is enabled on DataRateKit, Google and other third-party vendors may use cookies, device identifiers, IP addresses, or similar technologies in connection with serving advertisements.
           </p>
           <p>
-            In connection with serving advertisements:
+            In connection with future advertising:
           </p>
           <ul>
             <li>
-              Third-party vendors, including Google, use cookies, device identifiers, or similar tracking technologies to serve ads based on a user&rsquo;s prior visits to this website or other websites on the Internet.
+              Third-party vendors, including Google, may use cookies or similar tracking technologies to serve ads based on a user&rsquo;s visits to this website or other websites on the Internet.
             </li>
             <li>
-              Google&rsquo;s use of advertising cookies enables it and its partners to serve ads to our users based on their visits to DataRateKit and/or other sites across the Web.
+              Google&rsquo;s use of advertising cookies enables it and its partners to serve ads based on visits to DataRateKit and other sites across the Web.
             </li>
             <li>
-              Users may opt out of personalized advertising at any time by visiting{' '}
+              Users can manage or opt out of personalized advertising at any time by visiting{' '}
               <a
                 href="https://adssettings.google.com/"
                 target="_blank"
@@ -114,10 +114,10 @@ export default function PrivacyPolicyPage() {
         <h2 className={styles.sectionTitle}>5. Consent Management and Regional Privacy Rights</h2>
         <div className={styles.prose}>
           <p>
-            If you access DataRateKit from the European Economic Area (EEA), the United Kingdom (UK), or Switzerland, we facilitate required cookie and advertising consent choices in accordance with applicable regional privacy frameworks (such as GDPR and ePrivacy regulations) using a Google-certified Consent Management Platform (CMP).
+            If DataRateKit begins serving Google advertising to users in regions where consent management is required—such as the European Economic Area (EEA), the United Kingdom (UK), or Switzerland—we intend to use an appropriate Google-certified consent management platform (CMP) and provide the consent choices required by applicable rules.
           </p>
           <p>
-            You have the right to accept, reject, or customize your advertising and cookie preferences where required by law.
+            Where required by law, users will have the right to accept, reject, or customize their advertising and cookie preferences.
           </p>
         </div>
       </section>
