@@ -194,7 +194,7 @@ export default function MbpsConverterPage() {
               <strong>Uppercase &ldquo;B&rdquo; stands for bytes:</strong> Used in units like byte, KB/s, MB/s, and GB/s. Bytes represent storage units (1 byte = 8 bits).
             </li>
             <li>
-              <strong>Non-standard notation (&ldquo;MBps&rdquo;):</strong> Some software applications informally write &ldquo;MBps&rdquo; to denote megabytes per second. To prevent ambiguity between bits and bytes, standard technical practice uses <em>Mbps</em> for megabits per second and <em>MB/s</em> for megabytes per second.
+              <strong>Informal notation (&ldquo;MBps&rdquo;):</strong> Some software applications informally write &ldquo;MBps&rdquo; to denote megabytes per second. Because capitalization can be ambiguous in informal labels, DataRateKit uses <em>Mbps</em> for megabits per second and <em>MB/s</em> for megabytes per second to ensure clear distinction between bits and bytes.
             </li>
           </ul>
           <p>
@@ -225,14 +225,14 @@ export default function MbpsConverterPage() {
           </p>
           <ul className={styles.itemList}>
             <li>
-              <strong>Decimal SI units (MB/s):</strong> Based on powers of 10. Under the International System of Units (SI), 1 megabyte (MB) = 1,000,000 bytes (10<sup>6</sup>). This is the standard used by network equipment manufacturers and this calculator.
+              <strong>Decimal SI units (MB/s):</strong> Uses the decimal mega prefix, where 1 megabyte (MB) = 1,000,000 bytes (10<sup>6</sup>). This calculator performs conversions using standard decimal MB/s.
             </li>
             <li>
-              <strong>Binary IEC units (MiB/s):</strong> Based on powers of 2. Under the International Electrotechnical Commission (IEC) standard, 1 mebibyte (MiB) = 1,048,576 bytes (2<sup>20</sup>). Some file transfer tools, torrent clients, and operating systems report transfer rates in binary units.
+              <strong>Binary IEC units (MiB/s):</strong> Uses the binary mebi prefix, where 1 mebibyte (MiB) = 1,048,576 bytes (2<sup>20</sup>). Some applications display binary-rate units such as MiB/s, while others use decimal MB/s.
             </li>
           </ul>
           <p>
-            Because 1 MiB is approximately 4.86% larger than 1 MB, a transfer rate of 100 MB/s corresponds to approximately 95.37 MiB/s, even though the physical data flow is identical. This calculator performs conversions using standard decimal MB/s.
+            Because 1 MiB is approximately 4.86% larger than 1 MB, a transfer rate of 100 MB/s corresponds to approximately 95.37 MiB/s. Both numbers represent the exact same data transfer throughput on different unit scales.
           </p>
         </div>
       </section>
@@ -255,7 +255,7 @@ export default function MbpsConverterPage() {
             </li>
           </ul>
           <p>
-            <strong>Real-world throughput disclaimer:</strong> A mathematical unit conversion reflects theoretical equivalence under 100% ideal transmission. Real-world transfer throughput may differ from this theoretical value due to transport protocol framing, network congestion, Wi-Fi interference, storage write limits, or remote server constraints.
+            <strong>Real-world throughput disclaimer:</strong> A mathematical unit conversion reflects theoretical equivalence and does not predict end-to-end application throughput. Observed transfer rates can differ due to protocol behavior, network conditions, Wi-Fi interference, remote service limits, and storage or device constraints.
           </p>
         </div>
       </section>
@@ -315,7 +315,7 @@ export default function MbpsConverterPage() {
               Why does my 100 Mbps connection not always download at 12.5 MB/s?
             </div>
             <div className={styles.faqAnswer}>
-              While 100 Mbps mathematically equals 12.5 MB/s, real-world application throughput is affected by external network factors. These include transport protocol overhead (TCP/IP framing), local network congestion, Wi-Fi signal interference, and bandwidth caps or processing queues imposed by the remote sending server.
+              While 100 Mbps mathematically equals 12.5 MB/s, mathematical unit equivalence does not guarantee end-to-end application throughput. Protocol behavior, network conditions, retransmissions, and remote service limits can reduce application-level throughput.
             </div>
           </div>
 
@@ -324,7 +324,7 @@ export default function MbpsConverterPage() {
               What is the difference between MB/s and MiB/s?
             </div>
             <div className={styles.faqAnswer}>
-              MB/s (megabytes per second) uses decimal SI units where 1 MB = 1,000,000 bytes. MiB/s (mebibytes per second) uses binary IEC units where 1 MiB = 1,048,576 bytes. Because binary units are larger by a factor of 1.048576, 100 MB/s equals approximately 95.37 MiB/s.
+              MB/s (megabytes per second) uses the decimal SI prefix where 1 MB = 1,000,000 bytes. MiB/s (mebibytes per second) uses the binary IEC prefix where 1 MiB = 1,048,576 bytes. Because 1 MiB is approximately 4.86% larger than 1 MB, 100 MB/s equals approximately 95.37 MiB/s, representing the same physical data rate on a different measurement scale.
             </div>
           </div>
 
@@ -333,7 +333,7 @@ export default function MbpsConverterPage() {
               Is Mbps the same as MBps or MB/s?
             </div>
             <div className={styles.faqAnswer}>
-              Mbps uses a lowercase &ldquo;b&rdquo; for bits, while MB/s uses an uppercase &ldquo;B&rdquo; for bytes. Although some software informally writes &ldquo;MBps&rdquo; to represent megabytes per second, standard technical notation uses Mbps for megabits and MB/s for megabytes to prevent confusion between the two units.
+              In standard notation, Mbps uses a lowercase &ldquo;b&rdquo; for bits, while MB/s uses an uppercase &ldquo;B&rdquo; for bytes (1 byte = 8 bits). Although some software informally writes &ldquo;MBps&rdquo; to represent megabytes per second, standard technical notation uses Mbps for megabits and MB/s for megabytes to ensure clear distinction between bits and bytes.
             </div>
           </div>
         </div>
