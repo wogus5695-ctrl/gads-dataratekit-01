@@ -154,7 +154,7 @@ export default function FileTransferCalculatorPage() {
           <div className={styles.exampleBlock}>
             <div className={styles.exampleTitle}>System drive image backup (1 TB at 500 MB/s)</div>
             <div className={styles.exampleDesc}>
-              A 1 TB image equals 1,000 GB (1,000,000 MB). At a sustained throughput of 500 MB/s, theoretical transfer time is 2,000 seconds, which equals 33 minutes and 20 seconds.
+              A 1 TB image equals 1,000 GB (1,000,000 MB) using standard decimal storage units. At a sustained throughput of 500 MB/s, theoretical transfer time is 2,000 seconds, which equals 33 minutes and 20 seconds.
             </div>
           </div>
         </div>
@@ -174,22 +174,22 @@ export default function FileTransferCalculatorPage() {
               <strong>Source drive read speed:</strong> The medium holding the original data (such as an internal SSD, mechanical hard drive, or external storage) must read and deliver data continuously. If the source drive cannot sustain high read rates, the rest of the transfer pipeline is constrained.
             </li>
             <li>
-              <strong>Destination drive write speed:</strong> The receiving storage medium must write incoming data to disk. For many storage devices, sustained sequential write speeds may be lower than read speeds, particularly after internal write caches are exhausted.
+              <strong>Destination drive write speed:</strong> The receiving storage medium must write incoming data to disk. For many storage devices, sustained sequential write speeds may be lower than read speeds due to caching behavior, media write characteristics, or device-level management.
             </li>
             <li>
               <strong>Connection interface and bus bandwidth:</strong> External connections (such as USB, Thunderbolt, or SATA) and internal buses (PCIe lanes) define the maximum data bandwidth available between host controllers and storage devices.
             </li>
             <li>
-              <strong>Local network infrastructure (for NAS and LAN transfers):</strong> Networked transfers traverse Ethernet cables, Wi-Fi access points, network switches, and network interface cards (NICs). Any 100 Mbps or 1 Gbps link along the route establishes an upper network ceiling.
+              <strong>Local network infrastructure (for NAS and LAN transfers):</strong> Networked transfers traverse network interface cards (NICs), switches, routers, and wireless links. Negotiated link speeds, network path limits, and concurrent traffic establish the upper network ceiling.
             </li>
             <li>
-              <strong>Filesystem and operating system overhead:</strong> Filesystems (such as NTFS, APFS, ext4, or exFAT) must manage block allocation tables, journaling, access permissions, and directory indices for every transferred chunk.
+              <strong>Filesystem and operating system overhead:</strong> Filesystem metadata, block allocation, journaling, directory updates, and other bookkeeping operations can add processing work depending on the filesystem and workload.
             </li>
             <li>
-              <strong>Protocol processing and encapsulation:</strong> Network file sharing protocols (such as SMB, NFS, or WebDAV) introduce packet encapsulation, frame headers, and acknowledgment handshakes that consume processing cycles and transport capacity.
+              <strong>Protocol processing and transport overhead:</strong> Network file-sharing protocols can introduce additional protocol and latency overhead depending on the protocol, client, server configuration, and workload.
             </li>
             <li>
-              <strong>Thermal throttling and cache exhaustion:</strong> High-speed flash storage devices generate heat during sustained write operations. If controller temperatures rise significantly, drive controllers may reduce throughput to protect internal components.
+              <strong>Internal caching and thermal behavior:</strong> Some storage devices show different short-burst and sustained transfer performance because of caching behavior, internal media handling, or thermal conditions that can lead to throttling during prolonged heavy writes.
             </li>
           </ul>
         </div>
@@ -202,13 +202,13 @@ export default function FileTransferCalculatorPage() {
         </h2>
         <div className={styles.prose}>
           <p>
-            Nominal interface ratings (such as USB 5Gbps, USB 10Gbps, Gigabit Ethernet, or Thunderbolt 4) describe the theoretical raw signaling capability of the physical connection. They do not represent guaranteed file-copy throughput.
+            Nominal link rates (such as USB 5Gbps, USB 10Gbps, Gigabit Ethernet, or Thunderbolt 4) describe interface capability, not guaranteed application-level file-copy throughput.
           </p>
           <p>
             For example, an external drive connected via a USB 10Gbps port is theoretically capable of transporting over 1 GB/s across the physical cable. However, if the underlying drive inside the enclosure is a mechanical hard disk with a sustained write capability of 140 MB/s, the file transfer will proceed at 140 MB/s, regardless of the 10Gbps interface headroom.
           </p>
           <p>
-            <strong>Preset options in the calculator:</strong> The interface presets provided in this calculator (such as Gigabit Ethernet or USB 5Gbps) supply the nominal link rate for quick reference. When using an interface preset, the resulting time represents an idealized ceiling that assumes the storage hardware can fully saturate the connection.
+            <strong>Preset options in the calculator:</strong> The interface presets provided in this calculator (such as Gigabit Ethernet, USB, or Thunderbolt) supply nominal interface or link rates for quick reference. When using an interface preset, the resulting time represents an idealized ceiling that assumes the storage hardware and transfer pipeline can fully saturate the connection.
           </p>
           <p>
             <strong>The 100% default calculation:</strong> Unlike internet download or upload planning where unknown network congestion is common, local file transfers are often evaluated against a known, observed sustained copy speed from an active file manager dialog. When an observed sustained rate is entered, the calculator applies 100% of that rate directly without arbitrary reductions.
@@ -239,14 +239,14 @@ export default function FileTransferCalculatorPage() {
               <strong>Per-file I/O operations:</strong> Each file requires separate open, read, write, flush, and close system calls. The latency of executing these operations thousands of times accumulates into substantial idle time between actual payload writes.
             </li>
             <li>
-              <strong>Random vs. sequential storage access:</strong> Small files are often scattered across different physical locations on storage media. This forces the storage controller to perform repeated random lookups and updates rather than streaming large sequential data blocks.
+              <strong>Potential non-sequential access patterns:</strong> Small files and their corresponding directory entries can involve non-sequential read and write operations across storage blocks, which can add storage controller latency compared to continuous sequential streams.
             </li>
             <li>
-              <strong>Network protocol latency on NAS transfers:</strong> On networked file shares (such as SMB or NFS), each file operation may require round-trip acknowledgments between client and server, multiplying network latency over thousands of files.
+              <strong>Network protocol latency on networked transfers:</strong> On networked file shares, each file operation may require round-trip acknowledgments between client and server, multiplying latency over thousands of files depending on protocol and network configuration.
             </li>
           </ul>
           <p>
-            For large collections of small files, archiving the files into a single uncompressed or compressed container (such as a zip or tar archive) before transfer can substantially improve transfer speed by converting random metadata operations into a single sequential data stream.
+            Combining many small files into fewer larger archive files (such as a tar or zip container) may improve transfer efficiency in some workflows by reducing per-file metadata operations, though creating and extracting the archive also requires processing time.
           </p>
         </div>
       </section>
@@ -262,10 +262,10 @@ export default function FileTransferCalculatorPage() {
           </p>
           <ul className={styles.itemList}>
             <li>
-              <strong>Use an observed sustained copy rate:</strong> If you are actively transferring data or have completed a similar transfer between the same devices, enter the sustained MB/s value reported by your file manager (such as Windows File Explorer, macOS Finder, or rsync).
+              <strong>Use an observed sustained copy rate:</strong> A representative sustained rate observed during a comparable transfer between the same devices (reported in MB/s by file managers like Windows File Explorer, macOS Finder, or rsync) provides a realistic basis for estimation.
             </li>
             <li>
-              <strong>Prioritize sustained rates over initial burst speeds:</strong> Many modern operating systems and SSDs utilize high-speed RAM or SLC cache buffers for incoming writes. File copy dialogs often display very high speeds during the first few seconds of a transfer, which subsequently level off to a lower sustained rate once caches fill. Use the leveled-off rate for realistic estimates on large transfers.
+              <strong>Prioritize sustained rates over initial burst speeds:</strong> Some operating systems and storage devices show high initial transfer rates during the first few seconds of a copy due to caching or memory buffering, before leveling off to a lower sustained rate. For long transfers, use the leveled-off sustained rate.
             </li>
             <li>
               <strong>Treat interface presets as theoretical ceilings:</strong> If you only know the interface specification (such as a Gigabit Ethernet link or a USB 3.0 port), select that preset to see the absolute theoretical minimum transfer duration. Then consider using an adjustment scenario if your drives cannot saturate the link.
@@ -274,7 +274,7 @@ export default function FileTransferCalculatorPage() {
               <strong>Verify MB/s versus Mbps units:</strong> Ensure your speed unit matches your data source. Storage benchmarks and file copy dialogs report in megabytes per second (MB/s), whereas network cards and interface cables are rated in megabits per second (Mbps or Gbps).
             </li>
             <li>
-              <strong>Account for NAS and network path bottlenecks:</strong> On local network transfers, mathematical link capacity (such as 1 Gbps = 125 MB/s) represents network bandwidth, not guaranteed file throughput. Factors including NAS drive speed, RAID array rebuild activity, and concurrent network users can result in lower observed copy rates.
+              <strong>Account for NAS and network path bottlenecks:</strong> On local network transfers, the mathematical link conversion (such as 1 Gbps = 125 MB/s) represents nominal network bandwidth, not guaranteed file-copy throughput. Real-world NAS throughput depends on the storage subsystem, array or drive configuration, CPU resources, protocol behavior, and concurrent network traffic.
             </li>
           </ul>
         </div>
@@ -297,7 +297,7 @@ export default function FileTransferCalculatorPage() {
               <strong>Overlooking destination drive write bottlenecks:</strong> Focusing exclusively on how fast the source drive can read data, while neglecting that the destination drive may write at a substantially lower rate.
             </li>
             <li>
-              <strong>Using short burst speeds for long transfer planning:</strong> Entering the initial burst speed observed during the first few seconds of a transfer, which often reflects temporary memory cache buffering rather than sustained storage write capability.
+              <strong>Using short burst speeds for long transfer planning:</strong> Entering an initial burst speed observed during the first few seconds of a copy, which may reflect temporary memory buffering or device caching rather than representative sustained write capability.
             </li>
             <li>
               <strong>Assuming small files transfer as fast as large sequential files:</strong> Expecting thousands of small loose files to copy at the same sustained throughput as a single continuous media archive.
@@ -326,7 +326,7 @@ export default function FileTransferCalculatorPage() {
               Why is my file transfer slower than the USB or Ethernet rating?
             </div>
             <div className={styles.faqAnswer}>
-              Connection interface ratings (such as USB 5Gbps or Gigabit Ethernet) describe the raw signaling ceiling of the cable and controller, not actual storage performance. The actual transfer rate is bounded by the slowest component in the pipeline, which is frequently the destination drive&apos;s sustained write performance, filesystem metadata handling, or protocol overhead.
+              Connection interface ratings describe nominal interface capability, not application-level storage throughput. The actual transfer rate is bounded by the slowest relevant component in the pipeline, such as destination write performance, filesystem bookkeeping, or protocol overhead.
             </div>
           </div>
 
@@ -344,7 +344,7 @@ export default function FileTransferCalculatorPage() {
               Why do many small files copy more slowly than one large file of the same total size?
             </div>
             <div className={styles.faqAnswer}>
-              Each individual file requires the filesystem and operating system to create directory records, verify permissions, update access timestamps, and allocate storage clusters. When copying thousands of small files, the cumulative overhead of these metadata operations and non-sequential disk seeks significantly reduces effective throughput compared to a single continuous sequential stream.
+              Each individual file requires the filesystem and operating system to handle directory updates, allocation bookkeeping, and per-file I/O operations. When copying thousands of small files, the cumulative overhead of these repeated operations can substantially lower effective throughput compared to a single continuous sequential stream.
             </div>
           </div>
 
@@ -353,7 +353,7 @@ export default function FileTransferCalculatorPage() {
               What speed should I enter for a NAS transfer?
             </div>
             <div className={styles.faqAnswer}>
-              Enter an observed sustained copy rate from your file transfer client or backup software when available. If you only know the nominal network link speed (such as Gigabit Ethernet), you can enter its equivalent 125 MB/s rate as an interface ceiling, keeping in mind that actual sustained file throughput may be lower depending on NAS drive performance, RAID configuration, and network protocol overhead.
+              Use an observed sustained copy rate from your file manager or backup utility when available. If only a nominal network link rate is known (such as Gigabit Ethernet = 125 MB/s), treat it as an interface ceiling rather than a guaranteed file-copy rate, because NAS storage performance, device resources, array configuration, and protocol overhead determine actual sustained throughput.
             </div>
           </div>
         </div>
