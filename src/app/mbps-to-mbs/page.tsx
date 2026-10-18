@@ -31,15 +31,7 @@ export default function MbpsConverterPage() {
         </p>
       </header>
 
-      <Suspense
-        fallback={
-          <div className={styles.fallbackLoader} aria-busy="true">
-            Loading converter...
-          </div>
-        }
-      >
-        <MbpsConverter />
-      </Suspense>
+      <MbpsConverter />
 
       <section className={styles.supportingSection} aria-labelledby="how-it-works-heading">
         <h2 id="how-it-works-heading" className={styles.supportingTitle}>

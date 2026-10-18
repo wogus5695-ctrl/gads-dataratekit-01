@@ -49,9 +49,19 @@ const COMMON_INTERFACE_PRESETS: InterfacePreset[] = [
   { name: 'Thunderbolt 5', speed: '80', unit: 'Gbps' },
 ];
 
-export function FileTransferCalculator() {
+function FileTransferUrlSync({
+  onSync,
+}: {
+  onSync: (params: ReturnType<typeof useSearchParams>) => void;
+}) {
   const searchParams = useSearchParams();
+  useEffect(() => {
+    onSync(searchParams);
+  }, [searchParams, onSync]);
+  return null;
+}
 
+export function FileTransferCalculator() {
   // Mode state
   const [mode, setMode] = useState<CalculationMode>('find-time');
 
@@ -73,11 +83,11 @@ export function FileTransferCalculator() {
 
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
-  // Restore state from URL search params on mount
-  useEffect(() => {
-    if (!searchParams || Array.from(searchParams.keys()).length === 0) return;
+  // Restore state from URL search params on client mount
+  const handleUrlSync = useCallback((params: ReturnType<typeof useSearchParams>) => {
+    if (!params || Array.from(params.keys()).length === 0) return;
 
-    const parsed = parseCalculatorState(searchParams);
+    const parsed = parseCalculatorState(params);
     setMode(parsed.mode);
     setSizeInput(parsed.fileSize.toString());
     setSizeUnit(parsed.fileSizeUnit);
@@ -85,13 +95,13 @@ export function FileTransferCalculator() {
     setSpeedUnit(parsed.speedUnit);
 
     // If efficiency was explicitly in searchParams, respect it, otherwise default to 100
-    if (searchParams.has('efficiency')) {
+    if (params.has('efficiency')) {
       setEfficiency(parsed.efficiencyPercent);
     } else {
       setEfficiency(100);
     }
 
-    if (searchParams.has('time')) {
+    if (params.has('time')) {
       const sec = parsed.durationSeconds;
       if (sec >= 86400 && sec % 86400 === 0) {
         setTimeInput((sec / 86400).toString());
@@ -107,7 +117,7 @@ export function FileTransferCalculator() {
         setTimeUnit('seconds');
       }
     }
-  }, [searchParams]);
+  }, []);
 
   // Validations
   const sizeValidation = useMemo(
@@ -298,6 +308,9 @@ export function FileTransferCalculator() {
 
   return (
     <div className={styles.calculatorContainer} aria-label="File Transfer Time Calculator Tool">
+      <React.Suspense fallback={null}>
+        <FileTransferUrlSync onSync={handleUrlSync} />
+      </React.Suspense>
       {/* Mode Switcher / Segmented Control */}
       <div className={styles.modeSelectorRow}>
         <span className={styles.modeSelectorLabel} id="mode-selector-label">

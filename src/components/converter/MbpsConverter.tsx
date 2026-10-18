@@ -23,9 +23,19 @@ const COMMON_CONVERSIONS = [
   { mbps: 1000, mbs: 125 },
 ] as const;
 
-export function MbpsConverter() {
+function MbpsConverterUrlSync({
+  onSync,
+}: {
+  onSync: (params: ReturnType<typeof useSearchParams>) => void;
+}) {
   const searchParams = useSearchParams();
+  useEffect(() => {
+    onSync(searchParams);
+  }, [searchParams, onSync]);
+  return null;
+}
 
+export function MbpsConverter() {
   // Direction source indicates which field was last typed by user
   const [source, setSource] = useState<'mbps' | 'mbs'>('mbps');
   const [mbpsInput, setMbpsInput] = useState<string>('100');
@@ -33,11 +43,11 @@ export function MbpsConverter() {
 
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
-  // Restore state from URL search params on mount
-  useEffect(() => {
-    if (!searchParams || Array.from(searchParams.keys()).length === 0) return;
+  // Restore state from URL search params on client mount
+  const handleUrlSync = useCallback((params: ReturnType<typeof useSearchParams>) => {
+    if (!params || Array.from(params.keys()).length === 0) return;
 
-    const parsed = parseConverterState(searchParams);
+    const parsed = parseConverterState(params);
     if (parsed.from === 'mbs') {
       setSource('mbs');
       setMbsInput(parsed.value.toString());
@@ -47,7 +57,7 @@ export function MbpsConverter() {
       setMbpsInput(parsed.value.toString());
       setMbsInput(formatNumber(mbpsToMBs(parsed.value), 6));
     }
-  }, [searchParams]);
+  }, []);
 
   // Validations
   const mbpsValidation = useMemo(
@@ -176,6 +186,9 @@ export function MbpsConverter() {
   return (
     <>
       <div className={styles.converterContainer} aria-label="Mbps to MB/s Converter">
+        <React.Suspense fallback={null}>
+          <MbpsConverterUrlSync onSync={handleUrlSync} />
+        </React.Suspense>
         <form onSubmit={(e) => e.preventDefault()} noValidate>
           <div className={styles.bidirectionalHelp}>
             Edit either field — the other updates instantly.

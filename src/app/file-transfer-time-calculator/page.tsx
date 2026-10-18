@@ -31,15 +31,7 @@ export default function FileTransferCalculatorPage() {
         </p>
       </header>
 
-      <Suspense
-        fallback={
-          <div className={styles.fallbackLoader} aria-busy="true">
-            Loading calculator...
-          </div>
-        }
-      >
-        <FileTransferCalculator />
-      </Suspense>
+      <FileTransferCalculator />
 
       <section className={styles.supportingSection} aria-labelledby="how-it-works-heading">
         <h2 id="how-it-works-heading" className={styles.supportingTitle}>

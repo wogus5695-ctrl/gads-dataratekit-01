@@ -31,15 +31,7 @@ export default function UploadCalculatorPage() {
         </p>
       </header>
 
-      <Suspense
-        fallback={
-          <div className={styles.fallbackLoader} aria-busy="true">
-            Loading calculator...
-          </div>
-        }
-      >
-        <UploadCalculator />
-      </Suspense>
+      <UploadCalculator />
 
       <section className={styles.supportingSection} aria-labelledby="how-it-works-heading">
         <h2 id="how-it-works-heading" className={styles.supportingTitle}>
