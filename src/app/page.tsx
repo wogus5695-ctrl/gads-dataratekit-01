@@ -106,7 +106,7 @@ export default function DownloadCalculatorPage() {
         </h2>
         <div className={styles.prose}>
           <p>
-            The reference table below illustrates theoretical download times for a standard 100 GB file across common broadband and fiber connection speeds. These values assume 100% link efficiency under ideal network conditions.
+            The reference table below illustrates theoretical download times for a 100 GB example file across common broadband connection speeds. These values assume 100% link efficiency under ideal network conditions.
           </p>
         </div>
 
@@ -153,7 +153,7 @@ export default function DownloadCalculatorPage() {
           <div className={styles.exampleBlock}>
             <div className={styles.exampleTitle}>High-capacity transfer (100 GB at 1 Gbps)</div>
             <div className={styles.exampleDesc}>
-              A 100 GB file equals 800,000 megabits. On a full 1 Gbps (1,000 Mbps) fiber connection, the theoretical transfer time is 800 seconds (13 minutes and 20 seconds).
+              A 100 GB file equals 800,000 megabits. On a 1 Gbps (1,000 Mbps) connection, the theoretical transfer time is 800 seconds (13 minutes and 20 seconds).
             </div>
           </div>
         </div>
@@ -179,14 +179,14 @@ export default function DownloadCalculatorPage() {
               <strong>Shared local network traffic:</strong> Other active devices on your home or office local network—such as smart TVs streaming video, background cloud syncs, or gaming consoles—consume portions of your total available downstream bandwidth.
             </li>
             <li>
-              <strong>Protocol and packet overhead:</strong> TCP/IP transport framing, SSL/TLS cryptographic handshakes, and transmission acknowledgments naturally require a small percentage of gross connection capacity.
+              <strong>Protocol and transfer behavior:</strong> Protocol framing, acknowledgments, retransmissions, encryption processing, and other transport behavior can reduce application-level throughput depending on the connection and transfer.
             </li>
             <li>
               <strong>Storage and disk write bottlenecks:</strong> On multi-gigabit connections, local disk write speeds (especially with mechanical hard drives or throttled SSD cache), live file decryption, and antivirus real-time scanning can become the pacing factor rather than the network link itself.
             </li>
           </ul>
           <p>
-            <strong>The 90% throughput assumption:</strong> The 90% setting available in this calculator is designed as a practical planning assumption to account for everyday protocol overhead and minor connection variations. It is an optional planning tool rather than an empirical guarantee, as real-world throughput fluctuates depending on your setup.
+            <strong>The 90% throughput setting:</strong> The optional 90% setting models a scenario in which sustained throughput is 90% of the entered rate. It is a planning comparison to evaluate a lower-throughput case, not a measured universal value for network efficiency or protocol overhead, nor a guarantee of performance.
           </p>
         </div>
       </section>
@@ -205,7 +205,7 @@ export default function DownloadCalculatorPage() {
               <strong>Match your speed unit to your source:</strong> If you are entering your advertised plan from your internet service provider, use <em>Mbps</em> or <em>Gbps</em>. If your web browser, torrent client, or game launcher displays transfer rates in megabytes per second, select <em>MB/s</em>.
             </li>
             <li>
-              <strong>Use measured speeds instead of advertised maximums:</strong> Running a quick internet speed test provides your actual delivered downstream rate, which often differs from the nominal package speed stated on your bill.
+              <strong>Use measured speeds for planning:</strong> A speed test can provide an observed downstream rate under the test conditions, which may be more useful for planning than the advertised maximum on your bill.
             </li>
             <li>
               <strong>Verify your file size units:</strong> Check whether your operating system or file manager reports size in standard decimal gigabytes (1 GB = 1,000,000,000 bytes) or binary gibibytes (1 GiB = 1,073,741,824 bytes). For binary values, select <em>GiB</em> in the unit dropdown.
@@ -231,7 +231,7 @@ export default function DownloadCalculatorPage() {
               <strong>Treating theoretical calculations as guaranteed finish times:</strong> Live network conditions, routing hops, and server load fluctuate dynamically throughout an active transfer.
             </li>
             <li>
-              <strong>Treating GB and GiB as identical:</strong> Operating systems and storage manufacturers sometimes use binary GiB (1,073,741,824 bytes) rather than decimal GB (1,000,000,000 bytes), creating an approximately 7.4% difference in total required bits.
+              <strong>Treating GB and GiB as identical:</strong> Decimal gigabytes (1 GB = 1,000,000,000 bytes) and binary gibibytes (1 GiB = 1,073,741,824 bytes) differ by approximately 7.4%. Some operating systems and utilities report binary values, so use the unit explicitly indicated by your source.
             </li>
           </ul>
         </div>
@@ -248,7 +248,7 @@ export default function DownloadCalculatorPage() {
               How long does 100 GB take to download at 100 Mbps?
             </div>
             <div className={styles.faqAnswer}>
-              Under ideal theoretical conditions with 100% link efficiency, downloading a 100 GB file at 100 Mbps takes exactly 8,000 seconds, which equals 2 hours, 13 minutes, and 20 seconds. If factoring in typical real-world overhead with a 90% throughput assumption, it takes approximately 2 hours, 28 minutes, and 9 seconds.
+              Under ideal theoretical conditions with 100% link efficiency, downloading a 100 GB file at 100 Mbps takes exactly 8,000 seconds, which equals 2 hours, 13 minutes, and 20 seconds. Using the calculator&apos;s optional 90% planning scenario, the same transfer would take approximately 2 hours, 28 minutes, and 9 seconds.
             </div>
           </div>
 
@@ -284,7 +284,7 @@ export default function DownloadCalculatorPage() {
               Should I use GB or GiB for file size?
             </div>
             <div className={styles.faqAnswer}>
-              Use GB (decimal, 1,000,000,000 bytes) for most consumer files, game downloads, and general broadband estimates. If your operating system, torrent client, or file manager explicitly reports file sizes using binary IEC prefixes (GiB, 1,073,741,824 bytes), choose GiB in the calculator dropdown for precise mathematical conversion.
+              Use the unit reported by your source. If the size is labeled GB, choose GB (decimal, 1,000,000,000 bytes). If it is explicitly labeled GiB, choose GiB (binary IEC, 1,073,741,824 bytes). Choosing the matching unit ensures the calculation reflects the exact quantity of data to transfer.
             </div>
           </div>
         </div>
