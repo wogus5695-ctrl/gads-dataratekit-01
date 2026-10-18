@@ -106,7 +106,7 @@ export default function UploadCalculatorPage() {
         </h2>
         <div className={styles.prose}>
           <p>
-            The reference table below illustrates theoretical upload durations for a 100 GB example file across common upstream speeds. These values assume 100% link efficiency under ideal network conditions without remote receiving constraints.
+            The reference table below illustrates theoretical upload durations for a 100 GB example file across several example upload rates. These are theoretical values calculated using the full entered upload rate, without reductions for protocol overhead, competing network traffic, or remote receiving constraints.
           </p>
         </div>
 
@@ -170,19 +170,19 @@ export default function UploadCalculatorPage() {
           </p>
           <ul className={styles.itemList}>
             <li>
-              <strong>Remote service receiving limits:</strong> The destination cloud platform, video host, or remote server may impose per-connection bandwidth caps, account rate limits, or processing queues to manage server load.
+              <strong>Remote service receiving limits:</strong> The destination cloud platform, video host, or remote server may impose connection caps, account rate limits, or processing queues.
             </li>
             <li>
               <strong>Wi-Fi signal quality and packet retransmissions:</strong> Upstream traffic is sensitive to wireless interference, distance from your router, and wall attenuation. When wireless packet loss occurs, unacknowledged packets must be retransmitted, lowering effective throughput.
             </li>
             <li>
-              <strong>Shared upstream bandwidth:</strong> Upstream capacity is frequently narrower than downstream bandwidth. If multiple devices on your local network run video conferences, stream live video, or perform automatic cloud syncs simultaneously, your available upload bandwidth is reduced.
+              <strong>Shared upstream bandwidth:</strong> On asymmetric connections, upstream capacity may be lower than downstream capacity. If multiple devices on your local network run video conferences, stream live video, or perform cloud backups simultaneously, they share the available upstream capacity.
             </li>
             <li>
-              <strong>Protocol and encryption processing:</strong> Transport security (such as TLS/HTTPS handshakes), chunked file transfer headers, and TCP acknowledgment packets naturally consume a portion of gross upstream capacity.
+              <strong>Protocol and transport overhead:</strong> Protocol framing, retransmissions, encryption, application behavior, and other transport overhead can reduce application-level throughput depending on the transfer.
             </li>
             <li>
-              <strong>Background synchronization:</strong> Cloud storage clients (such as OneDrive, Google Drive, or Dropbox) running in the background can silently consume upstream bandwidth, competing directly with active manual uploads.
+              <strong>Background synchronization:</strong> Automated cloud synchronization and backup software running in the background can use upstream bandwidth at the same time as the active upload.
             </li>
             <li>
               <strong>Local file reading and disk access:</strong> Uploading archives containing tens of thousands of small files can be limited by local disk read latency and operating system file handle management, rather than the network link alone.
@@ -205,13 +205,13 @@ export default function UploadCalculatorPage() {
           </p>
           <ul className={styles.itemList}>
             <li>
-              <strong>Account for asymmetric connections:</strong> Some broadband plans provide different upload and download rates, while others are symmetric. On plans where rates differ, the upload capacity may be substantially lower than the advertised headline download speed. Always enter your plan&apos;s specified upload rate.
+              <strong>Account for asymmetric connections:</strong> Some broadband plans provide different upload and download rates, while others are symmetric. If your plan lists a separate upload rate, use that value for a theoretical plan-based estimate. For a measurement-based estimate, use an observed upload rate under relevant conditions.
             </li>
             <li>
-              <strong>Use measured speed test upload values:</strong> When testing your connection with a speed test utility, record the separate &ldquo;Upload&rdquo; score. A speed test can provide an observed downstream and upstream rate under the test conditions, which is generally more practical for planning than the nominal plan ceiling on your bill.
+              <strong>Use measured speed test upload values:</strong> When testing your connection with a speed test utility, record the separate &ldquo;Upload&rdquo; score. An upload test score is useful for measurement-based planning because it reflects conditions during that specific test, though it does not guarantee identical throughput to every remote destination.
             </li>
             <li>
-              <strong>Avoid confusing download speed with upload speed:</strong> Headline broadband packages (such as &ldquo;500 Mbps internet&rdquo;) typically refer only to downstream bandwidth. Using your download speed for an upload calculation will produce an unrealistic estimate on asymmetric connections.
+              <strong>Avoid confusing download speed with upload speed:</strong> Some broadband offers emphasize download speed, so verify whether a separate upload rate is listed. Using a download figure for an upload calculation will produce an unrealistic estimate on asymmetric connections.
             </li>
             <li>
               <strong>Match your speed unit to your tool:</strong> Broadband plans and speed tests report rates in megabits per second (Mbps). If your backup software or browser displays progress in megabytes per second (MB/s), select <em>MB/s</em> in the speed unit dropdown.
@@ -234,7 +234,7 @@ export default function UploadCalculatorPage() {
               <strong>Confusing Mbps with MB/s:</strong> Megabits per second (Mbps) and megabytes per second (MB/s) differ by a factor of 8. A 20 Mbps upload connection delivers up to 2.5 MB/s, not 20 MB/s.
             </li>
             <li>
-              <strong>Treating theoretical calculations as guaranteed finish times:</strong> Remote server ingestion rates, network routing hops, and home network traffic fluctuate dynamically throughout long transfers.
+              <strong>Treating theoretical calculations as guaranteed finish times:</strong> Remote server ingestion rates, network congestion, and routing conditions can change during a long transfer.
             </li>
             <li>
               <strong>Overlooking background cloud sync activity:</strong> Automated desktop photo or file sync utilities can quietly saturate upstream bandwidth without displaying an active progress bar.
@@ -257,7 +257,7 @@ export default function UploadCalculatorPage() {
               How long does 100 GB take to upload at 20 Mbps?
             </div>
             <div className={styles.faqAnswer}>
-              Under ideal theoretical conditions with 100% link efficiency, uploading a 100 GB file at 20 Mbps takes exactly 40,000 seconds, which equals 11 hours, 6 minutes, and 40 seconds. Using the calculator&apos;s optional 90% planning scenario, the same transfer would take approximately 12 hours, 20 minutes, and 44 seconds.
+              Under theoretical conditions using the full entered upload rate, uploading a 100 GB file at 20 Mbps takes exactly 40,000 seconds, which equals 11 hours, 6 minutes, and 40 seconds. Using the calculator&apos;s optional 90% planning scenario, the same transfer would take approximately 12 hours, 20 minutes, and 44 seconds.
             </div>
           </div>
 
@@ -266,7 +266,7 @@ export default function UploadCalculatorPage() {
               Why is my upload speed lower than my download speed?
             </div>
             <div className={styles.faqAnswer}>
-              Some broadband plans provide different upload and download rates, while symmetric plans provide similar rates in both directions. On asymmetric connections (common with cable or basic DSL), internet providers allocate a narrower portion of available frequency to upstream transmission because typical consumer activity involves receiving media rather than hosting or transmitting large files.
+              Some access technologies and service plans are asymmetric, meaning upstream and downstream rates are provisioned differently. Other connections are symmetric and provide similar rates in both directions. Check the upload rate published for your plan or measure it under relevant conditions.
             </div>
           </div>
 
@@ -275,7 +275,7 @@ export default function UploadCalculatorPage() {
               Should I use my internet plan speed or a speed-test result?
             </div>
             <div className={styles.faqAnswer}>
-              A speed test can provide an observed upstream rate under the test conditions, which is generally more practical for planning than the nominal plan ceiling stated on your bill. Advertised plan rates represent theoretical maximum link capacity under ideal circumstances.
+              If your plan lists a separate upload rate, you can use that value for a theoretical plan-based calculation. Advertised or published plan rates may differ from the throughput observed during a specific upload and are not necessarily a sustained end-to-end rate to every destination. A speed test provides an observed upload rate under specific test conditions, which can serve as a helpful basis for measurement-based planning.
             </div>
           </div>
 
@@ -284,7 +284,7 @@ export default function UploadCalculatorPage() {
               Why is my cloud upload taking longer than the calculator estimate?
             </div>
             <div className={styles.faqAnswer}>
-              Remote services may impose connection, account, processing, or receiving limits to balance incoming traffic across their servers. Additionally, local background syncs, Wi-Fi interference, server-side virus scanning, and chunked file verification can extend the time needed to finalize an upload.
+              Remote services may impose connection, account, processing, or receiving limits. In addition, local background synchronization and Wi-Fi interference can reduce the effective network upload rate. Furthermore, remote-side processing—such as antivirus scanning, file integrity verification, or media processing—may delay when a file becomes available after transfer, even if it does not reduce the network upload rate itself.
             </div>
           </div>
 
@@ -293,7 +293,7 @@ export default function UploadCalculatorPage() {
               What is the difference between Mbps and MB/s for uploads?
             </div>
             <div className={styles.faqAnswer}>
-              Mbps (megabits per second) measures digital data transmission speed in bits, which is standard for internet service providers. MB/s (megabytes per second) measures data transfer in bytes, commonly used by web browsers and operating systems. Because 1 byte contains 8 bits, divide your upload speed in Mbps by 8 to find the equivalent MB/s (for example, 20 Mbps ÷ 8 = 2.5 MB/s).
+              Mbps (megabits per second) measures digital data transmission in bits, and internet service rates are often expressed in Mbps. MB/s (megabytes per second) measures data transfer in bytes, which transfer applications often display. Because 1 byte contains 8 bits, divide your upload speed in Mbps by 8 to find the equivalent MB/s (for example, 20 Mbps ÷ 8 = 2.5 MB/s).
             </div>
           </div>
         </div>
