@@ -10,9 +10,9 @@ import {
 import { getCanonicalUrl } from '@/config/site';
 import styles from '../page.module.css';
 
-const title = 'File Transfer Time Calculator — Estimate File Copy Time';
+const title = 'Free File Transfer Time Calculator — Copy Time';
 const description =
-  'Calculate how long it takes to transfer files from their size and sustained transfer speed across storage, USB, Ethernet, or NAS connections.';
+  'Need to know how long a file copy will take? Enter file size and sustained transfer speed to get an instant estimate for SSD, USB, LAN, or NAS transfers.';
 const canonical = getCanonicalUrl('/file-transfer-time-calculator');
 
 export const metadata: Metadata = {
@@ -67,7 +67,7 @@ export default function FileTransferCalculatorPage() {
       <header className={styles.headerSection}>
         <h1 className={styles.title}>File Transfer Time Calculator</h1>
         <p className={styles.description}>
-          Calculate how long it will take to copy or transfer files based on total data size and sustained transfer speed.
+          Estimate how long a file copy or transfer will take from total data size and sustained transfer speed across internal drives, external storage, and local networks.
         </p>
       </header>
 

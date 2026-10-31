@@ -6,9 +6,9 @@ import { convertSpeed } from '@/lib/transfer';
 import { getCanonicalUrl } from '@/config/site';
 import styles from '../page.module.css';
 
-const title = 'Mbps to MB/s Converter — Megabits to Megabytes per Second';
+const title = 'Free Mbps to MB/s Converter — Convert Both Ways';
 const description =
-  'Convert Mbps to MB/s instantly, or convert MB/s back to Mbps. 100 Mbps equals 12.5 MB/s using 8 bits per byte.';
+  'Need to convert Mbps to MB/s or MB/s to Mbps? Convert both directions instantly using the 8-bits-per-byte relationship.';
 const canonical = getCanonicalUrl('/mbps-to-mbs');
 
 export const metadata: Metadata = {
@@ -55,7 +55,7 @@ export default function MbpsConverterPage() {
       <header className={styles.headerSection}>
         <h1 className={styles.title}>Mbps to MB/s Converter</h1>
         <p className={styles.description}>
-          Convert megabits per second (Mbps) to megabytes per second (MB/s), or convert back in the other direction. 1 byte equals 8 bits, so 100 Mbps equals 12.5 MB/s.
+          Convert Mbps to MB/s or MB/s back to Mbps instantly. Because 1 byte contains 8 bits, 100 Mbps equals 12.5 MB/s.
         </p>
       </header>
 

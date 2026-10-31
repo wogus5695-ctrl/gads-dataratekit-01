@@ -10,9 +10,9 @@ import {
 import { getCanonicalUrl } from '@/config/site';
 import styles from '../page.module.css';
 
-const title = 'Upload Time Calculator — Estimate File Upload Time';
+const title = 'Free Upload Time Calculator — Speed & Duration';
 const description =
-  'Calculate how long a file will take to upload from its size and upload speed. Estimate upload duration and required transfer speed.';
+  'Wondering how long your upload will take? Enter file size and upload speed to estimate the time needed for videos, backups, and large file transfers.';
 const canonical = getCanonicalUrl('/upload-time-calculator');
 
 export const metadata: Metadata = {
@@ -66,7 +66,7 @@ export default function UploadCalculatorPage() {
       <header className={styles.headerSection}>
         <h1 className={styles.title}>Upload Time Calculator</h1>
         <p className={styles.description}>
-          Calculate how long a file will take to upload based on its size and your upload speed.
+          Estimate how long a file will take to upload from its size and upload speed, including videos, cloud backups, and other large transfers.
         </p>
       </header>
 

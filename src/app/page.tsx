@@ -10,9 +10,9 @@ import {
 import { getCanonicalUrl } from '@/config/site';
 import styles from './page.module.css';
 
-const title = 'Download Time Calculator — Estimate File Download Time';
+const title = 'Free Download Time Calculator — File Size & Speed';
 const description =
-  'Calculate how long a file will take to download from its size and connection speed. Supports common file-size and transfer-speed units.';
+  'Need to know how long a download will take? Enter file size and connection speed to get an instant estimate for downloads of any size.';
 const canonical = getCanonicalUrl('/');
 
 export const metadata: Metadata = {
@@ -66,7 +66,7 @@ export default function DownloadCalculatorPage() {
       <header className={styles.headerSection}>
         <h1 className={styles.title}>Download Time Calculator</h1>
         <p className={styles.description}>
-          Calculate how long a file will take to download based on its size and your connection speed.
+          Estimate how long a download will take from file size and connection speed, with support for common data-size and transfer-rate units.
         </p>
       </header>
 
