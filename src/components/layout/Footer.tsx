@@ -6,6 +6,7 @@ const TOOL_LINKS = [
   { href: '/', label: 'Download' },
   { href: '/upload-time-calculator', label: 'Upload' },
   { href: '/file-transfer-time-calculator', label: 'File Transfer' },
+  { href: '/video-file-size-calculator', label: 'Video Size' },
   { href: '/mbps-to-mbs', label: 'Mbps ↔ MB/s' },
 ] as const;
 

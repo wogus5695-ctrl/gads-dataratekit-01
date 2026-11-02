@@ -54,4 +54,16 @@ describe('Core Utilities SSR / Initial HTML Visibility', () => {
     assert.ok(html.includes('Megabits per second'), 'Mbps label must be present');
     assert.ok(html.includes('Megabytes per second'), 'MB/s label must be present');
   });
+
+  it('Video File Size Calculator (/video-file-size-calculator) initial HTML renders inputs and default results', () => {
+    const htmlPath = path.join(serverAppDir, 'video-file-size-calculator.html');
+    assert.ok(fs.existsSync(htmlPath), 'video-file-size-calculator.html must exist after build');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.strictEqual(html.includes('Loading calculator...'), false, 'Must not contain Loading calculator fallback');
+    assert.ok(html.includes('Video File Size Calculator'), 'H1 title must be present');
+    assert.ok(html.includes('Estimated File Size'), 'Primary result label must be present');
+    assert.ok(html.includes('9.144 GB'), 'Default 20 Mbps + 320 kbps 1h result must be present in initial HTML');
+    assert.ok(html.includes('20.32 Mbps'), 'Total combined bitrate must be present in initial HTML');
+  });
 });
