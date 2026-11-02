@@ -66,4 +66,17 @@ describe('Core Utilities SSR / Initial HTML Visibility', () => {
     assert.ok(html.includes('9.144 GB'), 'Default 20 Mbps + 320 kbps 1h result must be present in initial HTML');
     assert.ok(html.includes('20.32 Mbps'), 'Total combined bitrate must be present in initial HTML');
   });
+
+  it('Internet Data Usage Calculator (/data-usage-calculator) initial HTML renders inputs and default results', () => {
+    const htmlPath = path.join(serverAppDir, 'data-usage-calculator.html');
+    assert.ok(fs.existsSync(htmlPath), 'data-usage-calculator.html must exist after build');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.strictEqual(html.includes('Loading calculator...'), false, 'Must not contain Loading calculator fallback');
+    assert.ok(html.includes('Internet Data Usage Calculator'), 'H1 title must be present');
+    assert.ok(html.includes('Day Period Usage'), 'Primary result label must be present');
+    assert.ok(html.includes('83.16 GB'), 'Default 30-day usage result must be present in initial HTML');
+    assert.ok(html.includes('Video stream'), 'Default video activity must be present');
+    assert.ok(html.includes('Audio stream'), 'Default audio activity must be present');
+  });
 });

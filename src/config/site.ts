@@ -117,6 +117,7 @@ export const INDEXABLE_ROUTES = [
   '/upload-time-calculator',
   '/file-transfer-time-calculator',
   '/video-file-size-calculator',
+  '/data-usage-calculator',
   '/mbps-to-mbs',
   '/about',
   '/contact',
