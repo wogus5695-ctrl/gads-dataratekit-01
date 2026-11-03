@@ -29,8 +29,9 @@ describe('Core Utilities SSR / Initial HTML Visibility', () => {
 
     assert.strictEqual(html.includes('Loading calculator...'), false, 'Must not contain Loading calculator fallback');
     assert.ok(html.includes('Upload Time Calculator'), 'H1 title must be present');
-    assert.ok(html.includes('Upload Time'), 'Primary result label must be present');
-    assert.ok(html.includes('11 hours 6 minutes 40 seconds'), 'Default 100 GB @ 20 Mbps result must be present in initial HTML');
+    assert.ok(html.includes('Estimated Upload Time'), 'Primary result label must be present');
+    assert.ok(html.includes('1 hour 6 minutes 40 seconds'), 'Default 10 GB @ 20 Mbps result must be present in initial HTML');
+    assert.ok(html.includes('20 Mbps'), 'Effective speed must be present in initial HTML');
   });
 
   it('File Transfer Calculator (/file-transfer-time-calculator) initial HTML renders inputs and default results', () => {

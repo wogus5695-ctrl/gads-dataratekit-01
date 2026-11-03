@@ -3,10 +3,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { UploadCalculator } from '@/components/calculator/UploadCalculator';
 import {
-  calculateTransferTime,
-  convertSpeed,
+  calculateUploadTime,
+  calculateUploadCapacity,
   SpeedUnit,
-} from '@/lib/transfer';
+} from '@/lib/upload';
 import { getCanonicalUrl } from '@/config/site';
 import styles from '../page.module.css';
 
@@ -26,280 +26,279 @@ export const metadata: Metadata = {
   },
 };
 
-interface BenchmarkSpeed {
+interface UpstreamTier {
   speed: number;
   unit: SpeedUnit;
   label: string;
+  context: string;
 }
 
-const UPLOAD_BENCHMARK_SPEEDS: BenchmarkSpeed[] = [
-  { speed: 5, unit: 'Mbps', label: '5 Mbps' },
-  { speed: 10, unit: 'Mbps', label: '10 Mbps' },
-  { speed: 20, unit: 'Mbps', label: '20 Mbps' },
-  { speed: 50, unit: 'Mbps', label: '50 Mbps' },
-  { speed: 100, unit: 'Mbps', label: '100 Mbps' },
+const UPSTREAM_BENCHMARK_TIERS: UpstreamTier[] = [
+  { speed: 5, unit: 'Mbps', label: '5 Mbps', context: 'Basic DSL / Mobile Hotspot' },
+  { speed: 10, unit: 'Mbps', label: '10 Mbps', context: 'Standard Cable Broadband' },
+  { speed: 20, unit: 'Mbps', label: '20 Mbps', context: 'Fast Cable / Mid-tier' },
+  { speed: 50, unit: 'Mbps', label: '50 Mbps', context: 'High-speed Cable / Entry Fiber' },
+  { speed: 100, unit: 'Mbps', label: '100 Mbps', context: 'Symmetric Gigabit / Fiber Tier' },
 ];
 
-function getUploadBenchmarkRows() {
-  return UPLOAD_BENCHMARK_SPEEDS.map((item) => {
-    const timeRes = calculateTransferTime({
-      fileSize: 100,
+function getUploadPlanningBenchmarkRows() {
+  return UPSTREAM_BENCHMARK_TIERS.map((tier) => {
+    // 10 GB file at 100% throughput factor, 0% reserve (Baseline)
+    const fullRes = calculateUploadTime({
+      fileSize: 10,
       fileSizeUnit: 'GB',
-      speed: item.speed,
-      speedUnit: item.unit,
-      efficiencyPercent: 100,
+      speed: tier.speed,
+      speedUnit: tier.unit,
+      throughputFactorPercent: 100,
+      reservedBandwidthPercent: 0,
     });
-    const rateRes = convertSpeed(item.speed, item.unit, 'MB/s');
+
+    // 10 GB file with 20% reserved (Example planning scenario)
+    const reserveRes = calculateUploadTime({
+      fileSize: 10,
+      fileSizeUnit: 'GB',
+      speed: tier.speed,
+      speedUnit: tier.unit,
+      throughputFactorPercent: 100,
+      reservedBandwidthPercent: 20,
+    });
+
+    // 8-hour overnight window capacity at 100% throughput factor
+    const capRes = calculateUploadCapacity({
+      speed: tier.speed,
+      speedUnit: tier.unit,
+      windowDurationSeconds: 8 * 3600,
+      targetSizeUnit: 'GB',
+      throughputFactorPercent: 100,
+      reservedBandwidthPercent: 0,
+    });
+
     return {
-      label: item.label,
-      mbRate: rateRes.success ? rateRes.data.formatted : '—',
-      duration: timeRes.success ? timeRes.data.duration.formatted : '—',
+      label: tier.label,
+      context: tier.context,
+      time10GB: fullRes.success ? fullRes.data.formattedDurationShort : '—',
+      time10GBReserved: reserveRes.success ? reserveRes.data.formattedDurationShort : '—',
+      cap8Hr: capRes.success ? capRes.data.maximumPayloadFormatted : '—',
     };
   });
 }
 
 export default function UploadCalculatorPage() {
-  const benchmarkRows = getUploadBenchmarkRows();
+  const benchmarkRows = getUploadPlanningBenchmarkRows();
 
   return (
     <main className={styles.pageContainer}>
       <header className={styles.headerSection}>
         <h1 className={styles.title}>Upload Time Calculator</h1>
         <p className={styles.description}>
-          Estimate how long a file will take to upload from its size and upload speed, including videos, cloud backups, and other large transfers.
+          Plan upstream file transfers with precision. Calculate realistic upload durations, find the minimum connection speed needed for deadlines, or budget how much data can upload within an overnight backup window.
         </p>
       </header>
 
+      {/* Main Interactive Upload Calculator Component */}
       <UploadCalculator />
 
-      {/* 1. How the upload time calculation works */}
-      <section className={styles.contentSection} aria-labelledby="how-it-works-heading">
-        <h2 id="how-it-works-heading" className={styles.supportingTitle}>
-          How the upload time calculation works
+      {/* 1. Planning Around Upstream Bandwidth */}
+      <section className={styles.contentSection} aria-labelledby="upstream-planning-heading">
+        <h2 id="upstream-planning-heading" className={styles.supportingTitle}>
+          Planning Around Upstream Bandwidth
         </h2>
         <div className={styles.prose}>
           <p>
-            When transmitting data from your local device to a remote server, cloud storage bucket, or video hosting platform, upload duration is governed by your upstream connection rate:
+            Unlike downstream connections, upstream bandwidth is frequently the most constrained link in consumer and small office networks. Most residential cable and DSL plans are deliberately asymmetric, providing 100 Mbps or 300 Mbps downstream but only 10 Mbps to 20 Mbps upstream.
+          </p>
+          <p>
+            When an upload consumes all available upstream capacity, other devices sharing the connection may experience increased latency or stalled downloads, as downstream TCP packets require reverse acknowledgment signals (TCP ACKs). To help model these situations, this calculator lets you define an optional planning throughput factor and unallocated bandwidth reserve:
           </p>
           <div>
             <div className={styles.formulaBox}>
-              Upload time = File size in bits ÷ Upload speed in bits per second
+              Available Upstream Rate = Entered Rate × Planning Throughput Factor × (1 − Reserved Bandwidth %)
             </div>
           </div>
-          <p>
-            Internet service providers measure bandwidth in bits per second (such as 20 Mbps or 50 Mbps), whereas operating systems, cloud drives, and cameras measure file sizes in bytes (such as 500 MB or 25 GB). Because 1 byte consists of exactly 8 bits, an upstream rate of 20 Mbps translates to a maximum theoretical transfer rate of 2.5 MB/s under ideal conditions.
-          </p>
-          <p>
-            To convert directly between upstream connection speeds (Mbps) and file transfer rates (MB/s), you can use our{' '}
-            <Link href="/mbps-to-mbs" className={styles.relatedLink}>
-              Mbps to MB/s Converter
-            </Link>
-            .
-          </p>
+          <div>
+            <div className={styles.formulaBox}>
+              Total Upload Time = (Data Size in Bits ÷ Available Upstream Rate) + (File Count × Estimated Per-File Setup Overhead)
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* 2. Upload time examples (Benchmark Table + Worked Examples) */}
-      <section className={styles.contentSection} aria-labelledby="examples-heading">
-        <h2 id="examples-heading" className={styles.supportingTitle}>
-          Upload time examples
+      {/* 2. Upstream Throughput and Window Benchmark */}
+      <section className={styles.contentSection} aria-labelledby="benchmark-heading">
+        <h2 id="benchmark-heading" className={styles.supportingTitle}>
+          Upstream Throughput &amp; Window Benchmarks
         </h2>
         <div className={styles.prose}>
           <p>
-            The reference table below illustrates theoretical upload durations for a 100 GB example file across several example upload rates. These are theoretical values calculated using the full entered upload rate, without reductions for protocol overhead, competing network traffic, or remote receiving constraints.
+            The table below illustrates theoretical upload durations and window capacities across standard upstream connection tiers. The baseline reflects the full entered rate (100% throughput factor, 0% reserve), while the second column provides an example planning scenario with 20% bandwidth unallocated for other network tasks:
           </p>
         </div>
-
         <div className={styles.tableWrapper}>
-          <table className={styles.benchmarkTable} aria-label="100 GB upload time reference table">
+          <table className={styles.benchmarkTable}>
             <thead>
               <tr>
-                <th scope="col">Upload speed</th>
-                <th scope="col">Equivalent rate</th>
-                <th scope="col">Theoretical upload time (100 GB)</th>
+                <th scope="col">Upstream Tier</th>
+                <th scope="col">Typical Connection</th>
+                <th scope="col">10 GB (Full Rate Baseline)</th>
+                <th scope="col">10 GB (Example: 20% Reserved)</th>
+                <th scope="col">8-Hour Window Capacity</th>
               </tr>
             </thead>
             <tbody>
               {benchmarkRows.map((row) => (
                 <tr key={row.label}>
-                  <th scope="row" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {row.label}
-                  </th>
-                  <td>{row.mbRate}</td>
-                  <td>{row.duration}</td>
+                  <td className={styles.speedCell}>{row.label}</td>
+                  <td>{row.context}</td>
+                  <td>{row.time10GB}</td>
+                  <td>{row.time10GBReserved}</td>
+                  <td><strong>{row.cap8Hr}</strong></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-
         <div className={styles.prose}>
-          <h3 className={styles.subheading}>Worked upload scenarios</h3>
-
-          <div className={styles.exampleBlock}>
-            <div className={styles.exampleTitle}>Video or presentation upload (10 GB at 20 Mbps)</div>
-            <div className={styles.exampleDesc}>
-              A 10 GB file contains 80,000 megabits (10 × 1,000 × 8). At a sustained upstream rate of 20 Mbps, the theoretical upload duration is 4,000 seconds, which equals exactly 1 hour, 6 minutes, and 40 seconds under ideal theoretical conditions.
-            </div>
-          </div>
-
-          <div className={styles.exampleBlock}>
-            <div className={styles.exampleTitle}>Cloud backup archive (50 GB at 50 Mbps)</div>
-            <div className={styles.exampleDesc}>
-              A 50 GB dataset equals 400,000 megabits. Uploading over a 50 Mbps upstream link requires 8,000 seconds, which equals 2 hours, 13 minutes, and 20 seconds.
-            </div>
-          </div>
-
-          <div className={styles.exampleBlock}>
-            <div className={styles.exampleTitle}>Large repository transfer (100 GB at 100 Mbps)</div>
-            <div className={styles.exampleDesc}>
-              A 100 GB file equals 800,000 megabits. On an upstream connection sustaining 100 Mbps, theoretical transfer time is 8,000 seconds (2 hours, 13 minutes, and 20 seconds).
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. Why actual uploads can take longer */}
-      <section className={styles.contentSection} aria-labelledby="why-slower-heading">
-        <h2 id="why-slower-heading" className={styles.supportingTitle}>
-          Why actual uploads can take longer
-        </h2>
-        <div className={styles.prose}>
-          <p>
-            Theoretical calculations measure pure upstream bandwidth under perfect conditions. In practice, sending data to remote services involves several external factors that can extend actual completion times:
-          </p>
-          <ul className={styles.itemList}>
-            <li>
-              <strong>Remote service receiving limits:</strong> The destination cloud platform, video host, or remote server may impose connection caps, account rate limits, or processing queues.
-            </li>
-            <li>
-              <strong>Wi-Fi signal quality and packet retransmissions:</strong> Upstream traffic is sensitive to wireless interference, distance from your router, and wall attenuation. When wireless packet loss occurs, unacknowledged packets must be retransmitted, lowering effective throughput.
-            </li>
-            <li>
-              <strong>Shared upstream bandwidth:</strong> On asymmetric connections, upstream capacity may be lower than downstream capacity. If multiple devices on your local network run video conferences, stream live video, or perform cloud backups simultaneously, they share the available upstream capacity.
-            </li>
-            <li>
-              <strong>Protocol and transport overhead:</strong> Protocol framing, retransmissions, encryption, application behavior, and other transport overhead can reduce application-level throughput depending on the transfer.
-            </li>
-            <li>
-              <strong>Background synchronization:</strong> Automated cloud synchronization and backup software running in the background can use upstream bandwidth at the same time as the active upload.
-            </li>
-            <li>
-              <strong>Local file reading and disk access:</strong> Uploading archives containing tens of thousands of small files can be limited by local disk read latency and operating system file handle management, rather than the network link alone.
-            </li>
-          </ul>
-          <p>
-            <strong>The 90% throughput setting:</strong> The optional 90% setting in this calculator models a scenario in which sustained throughput is 90% of your entered upload rate. It serves as a practical planning comparison to evaluate a lower-throughput case, rather than an empirical universal constant or guarantee.
+          <p className={styles.benchmarkFootnote}>
+            * Projections are mathematical calculations from the entered rates. 10 GB is calculated as 10,000,000,000 bytes. The 20% reserved column represents an illustrative planning assumption, not a technical recommendation. Actual throughput can vary depending on server routing, protocol framing, and local Wi-Fi stability.
           </p>
         </div>
       </section>
 
-      {/* 4. How to choose the correct upload speed */}
-      <section className={styles.contentSection} aria-labelledby="how-to-choose-heading">
-        <h2 id="how-to-choose-heading" className={styles.supportingTitle}>
-          How to choose the correct upload speed
+      {/* 3. Can Your Upload Finish Inside Your Available Window? */}
+      <section className={styles.contentSection} aria-labelledby="upload-window-heading">
+        <h2 id="upload-window-heading" className={styles.supportingTitle}>
+          Can the Upload Finish Inside Your Available Window?
         </h2>
         <div className={styles.prose}>
           <p>
-            Entering the appropriate upstream rate is essential for reliable upload planning:
+            Upload planning often centers on fixed operational timeframes, such as delivering client media files before a deadline or scheduling off-peak server synchronization.
           </p>
           <ul className={styles.itemList}>
             <li>
-              <strong>Account for asymmetric connections:</strong> Some broadband plans provide different upload and download rates, while others are symmetric. If your plan lists a separate upload rate, use that value for a theoretical plan-based estimate. For a measurement-based estimate, use an observed upload rate under relevant conditions.
+              <strong>Required Upload Rate (Mode B):</strong> If a 25 GB file must be delivered within a 2-hour window, the calculator determines the nominal uplink speed necessary under your chosen planning assumptions (for example, at 100% throughput factor and 0% reserve, a 25 GB payload requires at least 27.78 Mbps).
             </li>
             <li>
-              <strong>Use measured speed test upload values:</strong> When testing your connection with a speed test utility, record the separate &ldquo;Upload&rdquo; score. An upload test score is useful for measurement-based planning because it reflects conditions during that specific test, though it does not guarantee identical throughput to every remote destination.
-            </li>
-            <li>
-              <strong>Avoid confusing download speed with upload speed:</strong> Some broadband offers emphasize download speed, so verify whether a separate upload rate is listed. Using a download figure for an upload calculation will produce an unrealistic estimate on asymmetric connections.
-            </li>
-            <li>
-              <strong>Match your speed unit to your tool:</strong> Broadband plans and speed tests report rates in megabits per second (Mbps). If your backup software or browser displays progress in megabytes per second (MB/s), select <em>MB/s</em> in the speed unit dropdown.
+              <strong>Estimated Uploadable Data (Mode C):</strong> If you have an 8-hour overnight maintenance window on a 20 Mbps connection, the calculator computes the total volume transferable within that time frame (up to 72 GB at full rate), helping you determine whether large disk images must be split across multiple sessions.
             </li>
           </ul>
         </div>
       </section>
 
-      {/* 5. Common upload mistakes */}
-      <section className={styles.contentSection} aria-labelledby="common-mistakes-heading">
-        <h2 id="common-mistakes-heading" className={styles.supportingTitle}>
-          Common upload mistakes to avoid
+      {/* 4. Reserved Bandwidth and Concurrent Traffic */}
+      <section className={styles.contentSection} aria-labelledby="traffic-control-heading">
+        <h2 id="traffic-control-heading" className={styles.supportingTitle}>
+          Reserved Bandwidth and Concurrent Traffic
         </h2>
         <div className={styles.prose}>
+          <p>
+            When large uploads occur while other users or background tasks share the same uplink, devoting the entire pipeline to a single transfer can crowd out interactive applications.
+          </p>
           <ul className={styles.itemList}>
             <li>
-              <strong>Entering download speed instead of upload speed:</strong> On connections where downstream and upstream rates differ, entering your download speed (such as 300 Mbps on a plan with 20 Mbps upload) will severely underestimate transfer time.
+              <strong>Concurrent Network Sharing:</strong> Video conferencing, voice calls, and standard web browsing require reliable upstream headroom. In addition, download streams require upstream bandwidth to return TCP acknowledgment packets.
             </li>
             <li>
-              <strong>Confusing Mbps with MB/s:</strong> Megabits per second (Mbps) and megabytes per second (MB/s) differ by a factor of 8. A 20 Mbps upload connection delivers up to 2.5 MB/s, not 20 MB/s.
+              <strong>Planning Assumptions vs. Real-Time Throttling:</strong> The Reserved Bandwidth input in this calculator is a mathematical planning exclusion. It does not configure router QoS rules or enforce network limits; instead, it models how much longer an upload takes when you assume a portion of the pipe is occupied by other tasks.
             </li>
             <li>
-              <strong>Treating theoretical calculations as guaranteed finish times:</strong> Remote server ingestion rates, network congestion, and routing conditions can change during a long transfer.
-            </li>
-            <li>
-              <strong>Overlooking background cloud sync activity:</strong> Automated desktop photo or file sync utilities can quietly saturate upstream bandwidth without displaying an active progress bar.
-            </li>
-            <li>
-              <strong>Treating GB and GiB as identical:</strong> Decimal gigabytes (1 GB = 1,000,000,000 bytes) and binary gibibytes (1 GiB = 1,073,741,824 bytes) differ by approximately 7.4%. Use the unit explicitly reported by your source file manager.
+              <strong>Evaluating Trade-offs:</strong> On a 20 Mbps line, reserving 20% reduces the rate used for the upload calculation to 16 Mbps, increasing a 10 GB upload time from 1 hour 6 minutes to 1 hour 23 minutes while reflecting unallocated bandwidth for the rest of the network.
             </li>
           </ul>
         </div>
       </section>
 
-      {/* 6. Frequently asked questions */}
+      {/* 5. Batch Uploads and Per-File Planning Overhead */}
+      <section className={styles.contentSection} aria-labelledby="batch-overhead-heading">
+        <h2 id="batch-overhead-heading" className={styles.supportingTitle}>
+          Batch Uploads and Per-File Planning Overhead
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Depending on client software, transfer protocols, and remote server architectures, transferring a large batch of small files can take longer than sending a single archive of identical total volume.
+          </p>
+          <p>
+            Client applications may perform individual directory lookups, request authentications, or multipart initialization for each item. When client or server configurations do not support persistent connection pooling, cumulative setup latency can be noticeable across hundreds or thousands of files.
+          </p>
+          <p>
+            The Estimated Per-File Setup Overhead field provides an optional planning input so you can incorporate an assumed or measured per-file delay into your overall duration estimate.
+          </p>
+        </div>
+      </section>
+
+      {/* 6. Practical Upload Planning Scenarios */}
+      <section className={styles.contentSection} aria-labelledby="scenarios-heading">
+        <h2 id="scenarios-heading" className={styles.supportingTitle}>
+          Practical Upload Planning Scenarios
+        </h2>
+        <div className={styles.prose}>
+          <div className={styles.exampleCard}>
+            <div className={styles.exampleTitle}>Scenario A: 20 GB Video Master at 20 Mbps Upstream</div>
+            <p className={styles.exampleText}>
+              Delivering a 20 GB project file at a full 20 Mbps rate (100% throughput factor, 0% reserve) calculates to exactly <strong>2 hours 13 minutes 20 seconds</strong>. If you model an example scenario reserving 20% for other office tasks (16 Mbps effective), estimated duration becomes <strong>2 hours 46 minutes 40 seconds</strong>.
+            </p>
+          </div>
+
+          <div className={styles.exampleCard}>
+            <div className={styles.exampleTitle}>Scenario B: 500 GB System Backup in an 8-Hour Window</div>
+            <p className={styles.exampleText}>
+              Planning an off-peak backup across an 8-hour window on a 50 Mbps line yields an estimated maximum capacity of <strong>180 GB</strong>. To complete all 500 GB inside that single 8-hour window, the calculator indicates a required nominal uplink rate of at least <strong>138.89 Mbps</strong>.
+            </p>
+          </div>
+
+          <div className={styles.exampleCard}>
+            <div className={styles.exampleTitle}>Scenario C: 500 RAW Photos with Assumed Setup Latency</div>
+            <p className={styles.exampleText}>
+              Uploading 500 photo files totaling 15 GB over a 20 Mbps connection requires 1 hour 40 minutes of raw payload transfer. If you model an assumed per-file setup overhead of 1.5 seconds, the 750 seconds (12 minutes 30 seconds) of cumulative latency brings the total estimated duration to <strong>1 hour 52 minutes 30 seconds</strong>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Frequently Asked Questions */}
       <section className={styles.contentSection} aria-labelledby="faq-heading">
         <h2 id="faq-heading" className={styles.supportingTitle}>
-          Frequently asked questions
+          Frequently Asked Questions
         </h2>
         <div className={styles.faqList}>
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              How long does 100 GB take to upload at 20 Mbps?
+              Why is my upload speed so much lower than my download speed?
             </div>
             <div className={styles.faqAnswer}>
-              Under theoretical conditions using the full entered upload rate, uploading a 100 GB file at 20 Mbps takes exactly 40,000 seconds, which equals 11 hours, 6 minutes, and 40 seconds. Using the calculator&apos;s optional 90% planning scenario, the same transfer would take approximately 12 hours, 20 minutes, and 44 seconds.
+              Most residential internet technologies (such as DOCSIS cable or ADSL) allocate the majority of radio frequency spectrum to downstream data. Because general consumer activity historically involved downloading far more content than sending, service providers configured connections asymmetrically unless you subscribe to symmetric fiber.
             </div>
           </div>
 
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              Why is my upload speed lower than my download speed?
+              How much upload bandwidth should I reserve for other traffic?
             </div>
             <div className={styles.faqAnswer}>
-              Some access technologies and service plans are asymmetric, meaning upstream and downstream rates are provisioned differently. Other connections are symmetric and provide similar rates in both directions. Check the upload rate published for your plan or measure it under relevant conditions.
+              There is no universal recommendation because appropriate headroom depends on household size, active applications, and overall line capacity. Testing different reserve percentages (such as 10% to 30%) in the calculator allows you to see how much upload time increases when keeping capacity unallocated for concurrent network tasks.
             </div>
           </div>
 
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              Should I use my internet plan speed or a speed-test result?
+              Why can many small files take longer to upload than a single large file?
             </div>
             <div className={styles.faqAnswer}>
-              If your plan lists a separate upload rate, you can use that value for a theoretical plan-based calculation. Advertised or published plan rates may differ from the throughput observed during a specific upload and are not necessarily a sustained end-to-end rate to every destination. A speed test provides an observed upload rate under specific test conditions, which can serve as a helpful basis for measurement-based planning.
+              Depending on the transfer software and server configuration, each individual file may require independent metadata exchanges, request authorizations, and filesystem operations. If a client does not pipeline requests or reuse connections, cumulative per-file overhead can extend total transfer time beyond the pure byte transfer duration.
             </div>
           </div>
 
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              Why is my cloud upload taking longer than the calculator estimate?
+              How can I estimate if a cloud backup will finish overnight?
             </div>
             <div className={styles.faqAnswer}>
-              Remote services may impose connection, account, processing, or receiving limits. In addition, local background synchronization and Wi-Fi interference can reduce the effective network upload rate. Furthermore, remote-side processing—such as antivirus scanning, file integrity verification, or media processing—may delay when a file becomes available after transfer, even if it does not reduce the network upload rate itself.
-            </div>
-          </div>
-
-          <div className={styles.faqItem}>
-            <div className={styles.faqQuestion}>
-              What is the difference between Mbps and MB/s for uploads?
-            </div>
-            <div className={styles.faqAnswer}>
-              Mbps (megabits per second) measures digital data transmission in bits, and internet service rates are often expressed in Mbps. MB/s (megabytes per second) measures data transfer in bytes, which transfer applications often display. Because 1 byte contains 8 bits, divide your upload speed in Mbps by 8 to find the equivalent MB/s (for example, 20 Mbps ÷ 8 = 2.5 MB/s).
+              Select Mode C (Upload Window Capacity) and enter your available upstream rate alongside your target window duration (such as 8 hours). The calculator projects the total gigabytes transferable under your specified planning assumptions before the window closes.
             </div>
           </div>
         </div>
       </section>
 
-      {/* 7. Related tools */}
+      {/* 8. Related Tools Navigation */}
       <section className={styles.contentSection} aria-labelledby="related-tools-heading">
         <nav className={styles.relatedTools} aria-label="Related tools">
           <span id="related-tools-heading">Need other calculations or unit conversions?</span>
@@ -311,8 +310,12 @@ export default function UploadCalculatorPage() {
             File Transfer Time Calculator
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
-          <Link href="/mbps-to-mbs" className={styles.relatedLink}>
-            Mbps to MB/s Converter
+          <Link href="/data-usage-calculator" className={styles.relatedLink}>
+            Data Usage Calculator
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size-calculator" className={styles.relatedLink}>
+            Video File Size Calculator
           </Link>
         </nav>
       </section>

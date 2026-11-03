@@ -1,29 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  CalculationMode,
+  UploadCalculationMode,
   FileSizeUnit,
   SpeedUnit,
-  DECIMAL_FILE_UNITS,
-  BINARY_FILE_UNITS,
-  BIT_SPEED_UNITS,
-  BYTE_SPEED_UNITS,
-  calculateTransferTime,
-  calculateRequiredSpeed,
-  calculateTransferableSize,
-  convertSpeed,
-  formatNumber,
-  parseCalculatorState,
-  serializeCalculatorState,
-  validatePositiveNumber,
-} from '@/lib/transfer';
-import styles from './DownloadCalculator.module.css';
+  TimeUnit,
+  calculateUploadTime,
+  calculateRequiredUploadSpeed,
+  calculateUploadCapacity,
+  parseUploadUrlState,
+  serializeUploadUrlState,
+  DEFAULT_UPLOAD_STATE,
+} from '@/lib/upload';
+import styles from './UploadCalculator.module.css';
 
-const UI_LOCALE = 'en-US';
-
-type TimeUnit = 'seconds' | 'minutes' | 'hours' | 'days';
+const DECIMAL_FILE_UNITS: FileSizeUnit[] = ['KB', 'MB', 'GB', 'TB'];
+const BINARY_FILE_UNITS: FileSizeUnit[] = ['KiB', 'MiB', 'GiB', 'TiB'];
+const BIT_SPEED_UNITS: SpeedUnit[] = ['Kbps', 'Mbps', 'Gbps'];
+const BYTE_SPEED_UNITS: SpeedUnit[] = ['KB/s', 'MB/s', 'GB/s'];
 
 const TIME_UNIT_MULTIPLIERS: Record<TimeUnit, number> = {
   seconds: 1,
@@ -33,6 +29,7 @@ const TIME_UNIT_MULTIPLIERS: Record<TimeUnit, number> = {
 };
 
 const EFFICIENCY_PRESETS = [100, 95, 90, 85, 80] as const;
+const RESERVE_PRESETS = [0, 10, 20, 30] as const;
 
 function UploadUrlSync({
   onSync,
@@ -48,793 +45,602 @@ function UploadUrlSync({
 
 export function UploadCalculator() {
   // Mode state
-  const [mode, setMode] = useState<CalculationMode>('find-time');
+  const [mode, setMode] = useState<UploadCalculationMode>(DEFAULT_UPLOAD_STATE.mode);
 
-  // Input states (Upload default speed: 20 Mbps)
-  const [sizeInput, setSizeInput] = useState<string>('100');
-  const [sizeUnit, setSizeUnit] = useState<FileSizeUnit>('GB');
+  // Input states (strings for natural typing)
+  const [sizeInput, setSizeInput] = useState<string>(DEFAULT_UPLOAD_STATE.fileSize.toString());
+  const [sizeUnit, setSizeUnit] = useState<FileSizeUnit>(DEFAULT_UPLOAD_STATE.fileSizeUnit);
 
-  const [speedInput, setSpeedInput] = useState<string>('20');
-  const [speedUnit, setSpeedUnit] = useState<SpeedUnit>('Mbps');
+  const [speedInput, setSpeedInput] = useState<string>(DEFAULT_UPLOAD_STATE.speed.toString());
+  const [speedUnit, setSpeedUnit] = useState<SpeedUnit>(DEFAULT_UPLOAD_STATE.speedUnit);
 
-  const [timeInput, setTimeInput] = useState<string>('2');
-  const [timeUnit, setTimeUnit] = useState<TimeUnit>('hours');
+  const [efficiency, setEfficiency] = useState<number>(DEFAULT_UPLOAD_STATE.efficiency);
+  const [reservedBandwidth, setReservedBandwidth] = useState<number>(DEFAULT_UPLOAD_STATE.reservedBandwidth);
+
+  const [fileCountInput, setFileCountInput] = useState<string>(DEFAULT_UPLOAD_STATE.fileCount.toString());
+  const [overheadInput, setOverheadInput] = useState<string>(DEFAULT_UPLOAD_STATE.perFileOverhead.toString());
+
+  const [windowInput, setWindowInput] = useState<string>(DEFAULT_UPLOAD_STATE.windowDuration.toString());
+  const [windowUnit, setWindowUnit] = useState<TimeUnit>(DEFAULT_UPLOAD_STATE.windowDurationUnit);
 
   const [targetSpeedUnit, setTargetSpeedUnit] = useState<SpeedUnit>('Mbps');
   const [targetSizeUnit, setTargetSizeUnit] = useState<FileSizeUnit>('GB');
 
-  // Efficiency / Throughput assumption (default: 90%)
-  const [efficiency, setEfficiency] = useState<number>(90);
-
-  // Client hydration detection (for local finish time)
-  const [isMounted, setIsMounted] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   // Restore state from URL search params on client mount
   const handleUrlSync = useCallback((params: ReturnType<typeof useSearchParams>) => {
     if (!params || Array.from(params.keys()).length === 0) return;
 
-    const parsed = parseCalculatorState(params);
+    const parsed = parseUploadUrlState(params);
     setMode(parsed.mode);
     setSizeInput(parsed.fileSize.toString());
     setSizeUnit(parsed.fileSizeUnit);
     setSpeedInput(parsed.speed.toString());
     setSpeedUnit(parsed.speedUnit);
-
-    // If efficiency was explicitly in searchParams, respect it, otherwise default to 90
-    if (params.has('efficiency')) {
-      setEfficiency(parsed.efficiencyPercent);
-    } else {
-      setEfficiency(90);
-    }
-
-    if (params.has('time')) {
-      const sec = parsed.durationSeconds;
-      if (sec >= 86400 && sec % 86400 === 0) {
-        setTimeInput((sec / 86400).toString());
-        setTimeUnit('days');
-      } else if (sec >= 3600 && sec % 3600 === 0) {
-        setTimeInput((sec / 3600).toString());
-        setTimeUnit('hours');
-      } else if (sec >= 60 && sec % 60 === 0) {
-        setTimeInput((sec / 60).toString());
-        setTimeUnit('minutes');
-      } else {
-        setTimeInput(sec.toString());
-        setTimeUnit('seconds');
-      }
-    }
+    setEfficiency(parsed.efficiency);
+    setReservedBandwidth(parsed.reservedBandwidth);
+    setFileCountInput(parsed.fileCount.toString());
+    setOverheadInput(parsed.perFileOverhead.toString());
+    setWindowInput(parsed.windowDuration.toString());
+    setWindowUnit(parsed.windowDurationUnit);
   }, []);
 
-  // Validations
-  const sizeValidation = useMemo(
-    () => validatePositiveNumber(sizeInput, 'File size'),
-    [sizeInput]
-  );
-  const speedValidation = useMemo(
-    () => validatePositiveNumber(speedInput, 'Upload speed'),
-    [speedInput]
-  );
-  const timeValidation = useMemo(
-    () => validatePositiveNumber(timeInput, 'Time'),
-    [timeInput]
-  );
+  // Parse numeric inputs safely
+  const numericSize = parseFloat(sizeInput);
+  const numericSpeed = parseFloat(speedInput);
+  const numericWindow = parseFloat(windowInput);
+  const numericFiles = Math.max(1, parseInt(fileCountInput, 10) || 1);
+  const numericOverhead = Math.max(0, parseFloat(overheadInput) || 0);
 
-  // Mode 1: Find Time Calculation
-  const timeCalculation = useMemo(() => {
-    if (!sizeValidation.isValid || !speedValidation.isValid) {
-      return null;
-    }
+  const windowSeconds = Number.isFinite(numericWindow) && numericWindow > 0
+    ? numericWindow * TIME_UNIT_MULTIPLIERS[windowUnit]
+    : 0;
 
-    // Theoretical minimum at 100% (PRIMARY)
-    const theoretical = calculateTransferTime({
-      fileSize: sizeValidation.value,
+  // Execute calculations based on active mode
+  const modeAResult = useMemo(() => {
+    if (mode !== 'upload-time') return null;
+    return calculateUploadTime({
+      fileSize: numericSize,
       fileSizeUnit: sizeUnit,
-      speed: speedValidation.value,
-      speedUnit,
-      efficiencyPercent: 100,
-    });
-
-    // Practical estimate at chosen efficiency (SECONDARY)
-    const estimated = calculateTransferTime({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      speed: speedValidation.value,
-      speedUnit,
+      speed: numericSpeed,
+      speedUnit: speedUnit,
       efficiencyPercent: efficiency,
+      reservedBandwidthPercent: reservedBandwidth,
+      fileCount: numericFiles,
+      perFileOverheadSeconds: numericOverhead,
     });
+  }, [mode, numericSize, sizeUnit, numericSpeed, speedUnit, efficiency, reservedBandwidth, numericFiles, numericOverhead]);
 
-    // Equivalent byte rate (e.g. 20 Mbps -> 2.5 MB/s)
-    const equivalentRate = convertSpeed(speedValidation.value, speedUnit, 'MB/s');
-
-    // Effective speed in original speed unit
-    const effectiveSpeedValue = speedValidation.value * (efficiency / 100);
-
-    return {
-      theoretical,
-      estimated,
-      equivalentRate,
-      effectiveSpeedValue,
-    };
-  }, [sizeValidation, speedValidation, sizeUnit, speedUnit, efficiency]);
-
-  // Estimated Finish Time calculation (local browser time, based on practical duration)
-  const finishTimeString = useMemo(() => {
-    if (!isMounted || !timeCalculation?.estimated.success) return null;
-    const seconds = timeCalculation.estimated.data.seconds;
-    const finishDate = new Date(Date.now() + seconds * 1000);
-    return new Intl.DateTimeFormat(UI_LOCALE, {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(finishDate);
-  }, [isMounted, timeCalculation]);
-
-  // Mode 2: Find Required Upload Speed Calculation
-  const requiredSpeedCalculation = useMemo(() => {
-    if (!sizeValidation.isValid || !timeValidation.isValid) {
-      return null;
-    }
-
-    const totalSeconds = timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit];
-
-    // Theoretical speed at 100% (PRIMARY)
-    const theoretical = calculateRequiredSpeed({
-      fileSize: sizeValidation.value,
+  const modeBResult = useMemo(() => {
+    if (mode !== 'required-speed') return null;
+    return calculateRequiredUploadSpeed({
+      fileSize: numericSize,
       fileSizeUnit: sizeUnit,
-      durationSeconds: totalSeconds,
-      targetSpeedUnit,
-      efficiencyPercent: 100,
-    });
-
-    // Estimated speed needed at chosen efficiency (SECONDARY)
-    const estimated = calculateRequiredSpeed({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      durationSeconds: totalSeconds,
+      windowDurationSeconds: windowSeconds,
       targetSpeedUnit,
       efficiencyPercent: efficiency,
+      reservedBandwidthPercent: reservedBandwidth,
+      fileCount: numericFiles,
+      perFileOverheadSeconds: numericOverhead,
     });
+  }, [mode, numericSize, sizeUnit, windowSeconds, targetSpeedUnit, efficiency, reservedBandwidth, numericFiles, numericOverhead]);
 
-    return { theoretical, estimated, totalSeconds };
-  }, [sizeValidation, timeValidation, sizeUnit, timeUnit, targetSpeedUnit, efficiency]);
-
-  // Mode 3: Find Uploadable Size Calculation
-  const uploadableSizeCalculation = useMemo(() => {
-    if (!speedValidation.isValid || !timeValidation.isValid) {
-      return null;
-    }
-
-    const totalSeconds = timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit];
-
-    // Theoretical size at 100% (PRIMARY)
-    const theoretical = calculateTransferableSize({
-      speed: speedValidation.value,
-      speedUnit,
-      durationSeconds: totalSeconds,
-      targetSizeUnit,
-      efficiencyPercent: 100,
-    });
-
-    // Estimated size transferable at chosen efficiency (SECONDARY)
-    const estimated = calculateTransferableSize({
-      speed: speedValidation.value,
-      speedUnit,
-      durationSeconds: totalSeconds,
+  const modeCResult = useMemo(() => {
+    if (mode !== 'window-capacity') return null;
+    return calculateUploadCapacity({
+      speed: numericSpeed,
+      speedUnit: speedUnit,
+      windowDurationSeconds: windowSeconds,
       targetSizeUnit,
       efficiencyPercent: efficiency,
+      reservedBandwidthPercent: reservedBandwidth,
+      setupReserveSeconds: numericFiles > 1 ? numericFiles * numericOverhead : 0,
     });
+  }, [mode, numericSpeed, speedUnit, windowSeconds, targetSizeUnit, efficiency, reservedBandwidth, numericFiles, numericOverhead]);
 
-    return { theoretical, estimated, totalSeconds };
-  }, [speedValidation, timeValidation, speedUnit, timeUnit, targetSizeUnit, efficiency]);
-
-  // Reset to default Upload state
-  const handleReset = useCallback(() => {
-    setMode('find-time');
-    setSizeInput('100');
-    setSizeUnit('GB');
-    setSpeedInput('20');
-    setSpeedUnit('Mbps');
-    setTimeInput('2');
-    setTimeUnit('hours');
-    setTargetSpeedUnit('Mbps');
-    setTargetSizeUnit('GB');
-    setEfficiency(90);
-    setCopyFeedback(null);
-  }, []);
-
-  // Copy shareable link for Upload tool
-  const handleCopyLink = useCallback(async () => {
-    if (typeof window === 'undefined') return;
-
-    const totalSeconds = timeValidation.isValid
-      ? timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit]
-      : 7200;
-
-    const query = serializeCalculatorState({
+  // Share handler
+  const handleShare = useCallback(() => {
+    const query = serializeUploadUrlState({
       mode,
-      fileSize: sizeValidation.isValid ? sizeValidation.value : 100,
+      fileSize: Number.isFinite(numericSize) ? numericSize : DEFAULT_UPLOAD_STATE.fileSize,
       fileSizeUnit: sizeUnit,
-      speed: speedValidation.isValid ? speedValidation.value : 20,
+      speed: Number.isFinite(numericSpeed) ? numericSpeed : DEFAULT_UPLOAD_STATE.speed,
       speedUnit,
-      durationSeconds: totalSeconds,
-      efficiencyPercent: efficiency,
+      efficiency,
+      reservedBandwidth,
+      fileCount: numericFiles,
+      perFileOverhead: numericOverhead,
+      windowDuration: Number.isFinite(numericWindow) ? numericWindow : DEFAULT_UPLOAD_STATE.windowDuration,
+      windowDurationUnit: windowUnit,
     });
 
-    const shareUrl = `${window.location.origin}${window.location.pathname}?${query}`;
-
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
+    const shareUrl = `${window.location.origin}/upload-time-calculator${query}`;
+    navigator.clipboard
+      .writeText(shareUrl)
+      .then(() => {
         setCopyFeedback('Link copied!');
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = shareUrl;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        setCopyFeedback('Link copied!');
-      }
-    } catch {
-      setCopyFeedback('Unable to copy');
-    }
-
-    setTimeout(() => {
-      setCopyFeedback(null);
-    }, 2500);
-  }, [
-    mode,
-    sizeValidation,
-    sizeUnit,
-    speedValidation,
-    speedUnit,
-    timeValidation,
-    timeUnit,
-    efficiency,
-  ]);
+        setTimeout(() => setCopyFeedback(null), 2500);
+      })
+      .catch(() => {
+        setCopyFeedback('Failed to copy');
+        setTimeout(() => setCopyFeedback(null), 2500);
+      });
+  }, [mode, numericSize, sizeUnit, numericSpeed, speedUnit, efficiency, reservedBandwidth, numericFiles, numericOverhead, numericWindow, windowUnit]);
 
   return (
-    <div className={styles.calculatorContainer} aria-label="Upload Time Calculator Tool">
-      <React.Suspense fallback={null}>
+    <div className={styles.calculatorCard}>
+      {/* URL Synchronization */}
+      <Suspense fallback={null}>
         <UploadUrlSync onSync={handleUrlSync} />
-      </React.Suspense>
-      {/* Mode Switcher / Segmented Control */}
+      </Suspense>
+
+      {/* Mode Switcher */}
       <div className={styles.modeSelectorRow}>
-        <span className={styles.modeSelectorLabel} id="mode-selector-label">
-          Calculate
-        </span>
-        <div
-          className={styles.tabList}
-          role="tablist"
-          aria-labelledby="mode-selector-label"
-        >
+        <span className={styles.modeLabel}>Calculation Mode</span>
+        <div className={styles.segmentedControl} role="tablist" aria-label="Upload calculation modes">
           <button
             type="button"
             role="tab"
-            id="tab-find-time"
-            aria-selected={mode === 'find-time'}
-            aria-controls="calculator-panel"
-            className={`${styles.tabButton} ${
-              mode === 'find-time' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-time')}
+            aria-selected={mode === 'upload-time'}
+            className={`${styles.segmentBtn} ${mode === 'upload-time' ? styles.segmentBtnActive : ''}`}
+            onClick={() => setMode('upload-time')}
           >
-            Time
+            Upload Time
           </button>
           <button
             type="button"
             role="tab"
-            id="tab-find-speed"
-            aria-selected={mode === 'find-speed'}
-            aria-controls="calculator-panel"
-            className={`${styles.tabButton} ${
-              mode === 'find-speed' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-speed')}
+            aria-selected={mode === 'required-speed'}
+            className={`${styles.segmentBtn} ${mode === 'required-speed' ? styles.segmentBtnActive : ''}`}
+            onClick={() => setMode('required-speed')}
           >
-            Required speed
+            Required Upstream Speed
           </button>
           <button
             type="button"
             role="tab"
-            id="tab-find-size"
-            aria-selected={mode === 'find-size'}
-            aria-controls="calculator-panel"
-            className={`${styles.tabButton} ${
-              mode === 'find-size' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-size')}
+            aria-selected={mode === 'window-capacity'}
+            className={`${styles.segmentBtn} ${mode === 'window-capacity' ? styles.segmentBtnActive : ''}`}
+            onClick={() => setMode('window-capacity')}
           >
-            File size
+            Upload Window Capacity
           </button>
         </div>
       </div>
 
-      {/* Main Form Fields */}
-      <div id="calculator-panel" role="tabpanel" aria-labelledby={`tab-${mode}`}>
-        <div className={`${styles.formGrid} ${styles.formGridTwoCol}`}>
-          {/* File Size Input (Used in Mode 1 & Mode 2) */}
-          {(mode === 'find-time' || mode === 'find-speed') && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="file-size-input" className={styles.label}>
-                File Size
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !sizeValidation.isValid ? styles.inputRowError : ''
-                }`}
+      {/* Primary Input Grid */}
+      <div className={styles.inputGrid}>
+        {/* File Size (Modes A & B) */}
+        {mode !== 'window-capacity' && (
+          <div className={styles.fieldGroup}>
+            <label htmlFor="upload-size-input" className={styles.fieldLabel}>
+              Total Data / File Size
+            </label>
+            <div className={styles.inputWithUnit}>
+              <input
+                id="upload-size-input"
+                type="number"
+                min="0"
+                step="any"
+                className={styles.textInput}
+                value={sizeInput}
+                onChange={(e) => setSizeInput(e.target.value)}
+                placeholder="10"
+              />
+              <select
+                className={styles.unitSelect}
+                aria-label="File size unit"
+                value={sizeUnit}
+                onChange={(e) => setSizeUnit(e.target.value as FileSizeUnit)}
               >
-                <input
-                  id="file-size-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={sizeInput}
-                  onChange={(e) => setSizeInput(e.target.value)}
-                  placeholder="e.g. 100"
-                  aria-invalid={!sizeValidation.isValid}
-                  aria-describedby={!sizeValidation.isValid ? 'size-error' : undefined}
-                  className={styles.numberInput}
-                />
-                <select
-                  id="file-size-unit"
-                  value={sizeUnit}
-                  onChange={(e) => setSizeUnit(e.target.value as FileSizeUnit)}
-                  aria-label="File size unit"
-                  className={styles.unitSelect}
-                >
-                  <optgroup label="Standard (Decimal)">
-                    {DECIMAL_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Binary (IEC)">
-                    {BINARY_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              {!sizeValidation.isValid && (
-                <span id="size-error" className={styles.errorMessage}>
-                  {sizeValidation.error}
-                </span>
-              )}
+                <optgroup label="Decimal (Standard)">
+                  {DECIMAL_FILE_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Binary (IEC)">
+                  {BINARY_FILE_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Upload Speed Input (Used in Mode 1 & Mode 3) */}
-          {(mode === 'find-time' || mode === 'find-size') && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="upload-speed-input" className={styles.label}>
-                Upload Speed
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !speedValidation.isValid ? styles.inputRowError : ''
-                }`}
+        {/* Upload Speed (Modes A & C) */}
+        {mode !== 'required-speed' && (
+          <div className={styles.fieldGroup}>
+            <label htmlFor="upload-speed-input" className={styles.fieldLabel}>
+              Upstream Speed (ISP or Tested)
+            </label>
+            <div className={styles.inputWithUnit}>
+              <input
+                id="upload-speed-input"
+                type="number"
+                min="0"
+                step="any"
+                className={styles.textInput}
+                value={speedInput}
+                onChange={(e) => setSpeedInput(e.target.value)}
+                placeholder="20"
+              />
+              <select
+                className={styles.unitSelect}
+                aria-label="Upload speed unit"
+                value={speedUnit}
+                onChange={(e) => setSpeedUnit(e.target.value as SpeedUnit)}
               >
-                <input
-                  id="upload-speed-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={speedInput}
-                  onChange={(e) => setSpeedInput(e.target.value)}
-                  placeholder="e.g. 20"
-                  aria-invalid={!speedValidation.isValid}
-                  aria-describedby={
-                    !speedValidation.isValid
-                      ? 'speed-error'
-                      : 'upload-speed-helper'
-                  }
-                  className={styles.numberInput}
-                />
-                <select
-                  id="upload-speed-unit"
-                  value={speedUnit}
-                  onChange={(e) => setSpeedUnit(e.target.value as SpeedUnit)}
-                  aria-label="Upload speed unit"
-                  className={styles.unitSelect}
-                >
-                  <optgroup label="ISP / Telecom (Bits)">
-                    {BIT_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Transfer Rate (Bytes)">
-                    {BYTE_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              {!speedValidation.isValid ? (
-                <span id="speed-error" className={styles.errorMessage}>
-                  {speedValidation.error}
-                </span>
-              ) : (
-                <span id="upload-speed-helper" className={styles.helperText}>
-                  Use the upload speed from your internet connection or speed test, not the download speed.
-                </span>
-              )}
+                <optgroup label="Telecom (Bits)">
+                  {BIT_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Byte Rate">
+                  {BYTE_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Time Duration Input (Used in Mode 2 & Mode 3) */}
-          {(mode === 'find-speed' || mode === 'find-size') && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="time-duration-input" className={styles.label}>
-                {mode === 'find-speed' ? 'Desired Upload Time' : 'Available Time'}
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !timeValidation.isValid ? styles.inputRowError : ''
-                }`}
+        {/* Window Duration (Modes B & C) */}
+        {mode !== 'upload-time' && (
+          <div className={styles.fieldGroup}>
+            <label htmlFor="upload-window-input" className={styles.fieldLabel}>
+              {mode === 'required-speed' ? 'Target Upload Deadline' : 'Available Upload Window'}
+            </label>
+            <div className={styles.inputWithUnit}>
+              <input
+                id="upload-window-input"
+                type="number"
+                min="0"
+                step="any"
+                className={styles.textInput}
+                value={windowInput}
+                onChange={(e) => setWindowInput(e.target.value)}
+                placeholder="2"
+              />
+              <select
+                className={styles.unitSelect}
+                aria-label="Window time unit"
+                value={windowUnit}
+                onChange={(e) => setWindowUnit(e.target.value as TimeUnit)}
               >
-                <input
-                  id="time-duration-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={timeInput}
-                  onChange={(e) => setTimeInput(e.target.value)}
-                  placeholder="e.g. 2"
-                  aria-invalid={!timeValidation.isValid}
-                  aria-describedby={!timeValidation.isValid ? 'time-error' : undefined}
-                  className={styles.numberInput}
-                />
-                <select
-                  id="time-duration-unit"
-                  value={timeUnit}
-                  onChange={(e) => setTimeUnit(e.target.value as TimeUnit)}
-                  aria-label="Time duration unit"
-                  className={styles.unitSelect}
-                >
-                  <option value="seconds">seconds</option>
-                  <option value="minutes">minutes</option>
-                  <option value="hours">hours</option>
-                  <option value="days">days</option>
-                </select>
-              </div>
-              {!timeValidation.isValid && (
-                <span id="time-error" className={styles.errorMessage}>
-                  {timeValidation.error}
-                </span>
-              )}
+                <option value="seconds">seconds</option>
+                <option value="minutes">minutes</option>
+                <option value="hours">hours</option>
+                <option value="days">days</option>
+              </select>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Target Speed Unit (Mode 2 only) */}
-          {mode === 'find-speed' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="target-speed-unit" className={styles.label}>
-                Result Speed Unit
-              </label>
-              <div className={styles.inputRow}>
-                <select
-                  id="target-speed-unit"
-                  value={targetSpeedUnit}
-                  onChange={(e) => setTargetSpeedUnit(e.target.value as SpeedUnit)}
-                  className={styles.unitSelect}
-                  style={{ width: '100%', borderLeft: 'none' }}
-                >
-                  <optgroup label="Bits">
-                    {BIT_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Bytes">
-                    {BYTE_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
+        {/* Target Speed Unit for Mode B */}
+        {mode === 'required-speed' && (
+          <div className={styles.fieldGroup}>
+            <label htmlFor="target-speed-select" className={styles.fieldLabel}>
+              Speed Output Unit
+            </label>
+            <div className={styles.inputWithUnit}>
+              <select
+                id="target-speed-select"
+                className={styles.textInput}
+                style={{ cursor: 'pointer' }}
+                value={targetSpeedUnit}
+                onChange={(e) => setTargetSpeedUnit(e.target.value as SpeedUnit)}
+              >
+                {BIT_SPEED_UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+                {BYTE_SPEED_UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Target Size Unit (Mode 3 only) */}
-          {mode === 'find-size' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="target-size-unit" className={styles.label}>
-                Result Size Unit
-              </label>
-              <div className={styles.inputRow}>
-                <select
-                  id="target-size-unit"
-                  value={targetSizeUnit}
-                  onChange={(e) => setTargetSizeUnit(e.target.value as FileSizeUnit)}
-                  className={styles.unitSelect}
-                  style={{ width: '100%', borderLeft: 'none' }}
-                >
-                  <optgroup label="Standard (Decimal)">
-                    {DECIMAL_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Binary (IEC)">
-                    {BINARY_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
+        {/* Target Size Unit for Mode C */}
+        {mode === 'window-capacity' && (
+          <div className={styles.fieldGroup}>
+            <label htmlFor="target-size-select" className={styles.fieldLabel}>
+              Capacity Output Unit
+            </label>
+            <div className={styles.inputWithUnit}>
+              <select
+                id="target-size-select"
+                className={styles.textInput}
+                style={{ cursor: 'pointer' }}
+                value={targetSizeUnit}
+                onChange={(e) => setTargetSizeUnit(e.target.value as FileSizeUnit)}
+              >
+                {DECIMAL_FILE_UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+                {BINARY_FILE_UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+          </div>
+        )}
+      </div>
+
+      {/* Upstream Planning Parameters Section */}
+      <section className={styles.planningSection} aria-label="Upstream planning parameters">
+        <div className={styles.planningTitle}>
+          <span>Upstream Bandwidth &amp; Batch Planning</span>
+          <span className={styles.planningBadge}>Traffic Control</span>
         </div>
 
-        {/* Progressive Disclosure: Estimate / Throughput Settings */}
-        <details className={styles.estimateDisclosure}>
-          <summary className={styles.estimateSummary}>
-            Estimate settings · {efficiency}% throughput
-            <span className={styles.disclosureIndicator} aria-hidden="true">
-              ▾
+        <div className={styles.planningGrid}>
+          {/* Reserved Bandwidth */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>
+              Reserved Bandwidth ({reservedBandwidth}%)
+            </label>
+            <div className={styles.presetGroup}>
+              {RESERVE_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`${styles.presetBtn} ${reservedBandwidth === p ? styles.presetBtnActive : ''}`}
+                  onClick={() => setReservedBandwidth(p)}
+                >
+                  {p === 0 ? '0% (Max)' : `${p}%`}
+                </button>
+              ))}
+            </div>
+            <span className={styles.fieldHint}>
+              Optionally exclude an upstream percentage from the calculation to model capacity reserved for other concurrent household or office traffic.
             </span>
-          </summary>
-          <div className={styles.estimateBody}>
-            <div
-              className={styles.throughputPills}
-              role="group"
-              aria-label="Throughput percentage options"
-            >
+          </div>
+
+          {/* Planning Throughput Factor */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>
+              Planning Throughput Factor ({efficiency}%)
+            </label>
+            <div className={styles.presetGroup}>
               {EFFICIENCY_PRESETS.map((p) => (
                 <button
                   key={p}
                   type="button"
-                  aria-pressed={efficiency === p}
-                  className={`${styles.pillButton} ${
-                    efficiency === p ? styles.pillButtonActive : ''
-                  }`}
+                  className={`${styles.presetBtn} ${efficiency === p ? styles.presetBtnActive : ''}`}
                   onClick={() => setEfficiency(p)}
                 >
-                  {p === 100 ? '100% (Theoretical)' : `${p}%`}
+                  {p}%
                 </button>
               ))}
             </div>
-            <p className={styles.throughputHelp}>
-              90% is used as a practical planning assumption, not a guarantee. Actual upload
-              speeds can vary because of Wi-Fi conditions, network congestion, protocol overhead,
-              and remote service limits.
-              {mode === 'find-time' && timeCalculation && (
-                <> (Effective speed: {formatNumber(timeCalculation.effectiveSpeedValue)} {speedUnit})</>
-              )}
-            </p>
+            <span className={styles.fieldHint}>
+              Use 100% to calculate from the full entered rate. Lower values model a reduced sustained-throughput scenario; they are planning assumptions, not universal network-efficiency constants.
+            </span>
           </div>
-        </details>
 
-        {/* Results Area — High-Scanning Visual Hierarchy */}
-        <div className={styles.resultCard} aria-live="polite" aria-atomic="true">
-          {/* MODE 1 RESULTS */}
-          {mode === 'find-time' && (
-            <>
-              {timeCalculation &&
-              timeCalculation.theoretical.success &&
-              timeCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT: Theoretical minimum at entered nominal speed */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Upload Time</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {timeCalculation.theoretical.data.duration.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At {speedInput} {speedUnit}
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT: Practical estimate at selected throughput */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Practical estimate · {efficiency}% throughput:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {timeCalculation.estimated.data.duration.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Simplified Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Equivalent rate:</span>
-                      <span className={styles.metricVal}>
-                        {timeCalculation.equivalentRate.success
-                          ? timeCalculation.equivalentRate.data.formatted
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Finish time (local):</span>
-                      <span className={styles.metricVal}>
-                        {finishTimeString || '—'}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid file size and upload speed to calculate upload time.
-                </div>
-              )}
-            </>
+          {/* Multi-file batch count */}
+          {mode !== 'window-capacity' && (
+            <div className={styles.fieldGroup}>
+              <label htmlFor="file-count-input" className={styles.fieldLabel}>
+                File Count (Batch Upload)
+              </label>
+              <div className={styles.inputWithUnit}>
+                <input
+                  id="file-count-input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  className={styles.textInput}
+                  value={fileCountInput}
+                  onChange={(e) => setFileCountInput(e.target.value)}
+                  placeholder="1"
+                />
+              </div>
+              <span className={styles.fieldHint}>
+                Sets number of independent files in the batch.
+              </span>
+            </div>
           )}
 
-          {/* MODE 2 RESULTS */}
-          {mode === 'find-speed' && (
-            <>
-              {requiredSpeedCalculation &&
-              requiredSpeedCalculation.theoretical.success &&
-              requiredSpeedCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT: Theoretical minimum speed at 100% */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Required Upload Speed</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {requiredSpeedCalculation.theoretical.data.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At 100% throughput
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT: Practical estimate */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Practical estimate · {efficiency}% throughput:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {requiredSpeedCalculation.estimated.data.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Target duration:</span>
-                      <span className={styles.metricVal}>
-                        {timeInput} {timeUnit}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>File size:</span>
-                      <span className={styles.metricVal}>
-                        {sizeInput} {sizeUnit}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid file size and desired duration to calculate required upload speed.
-                </div>
-              )}
-            </>
-          )}
-
-          {/* MODE 3 RESULTS */}
-          {mode === 'find-size' && (
-            <>
-              {uploadableSizeCalculation &&
-              uploadableSizeCalculation.theoretical.success &&
-              uploadableSizeCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT: Theoretical maximum size at 100% */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Uploadable File Size</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {uploadableSizeCalculation.theoretical.data.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At 100% throughput
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT: Practical estimate */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Practical estimate · {efficiency}% throughput:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {uploadableSizeCalculation.estimated.data.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Available time:</span>
-                      <span className={styles.metricVal}>
-                        {timeInput} {timeUnit}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Upload speed:</span>
-                      <span className={styles.metricVal}>
-                        {speedInput} {speedUnit}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid speed and duration to calculate uploadable size.
-                </div>
-              )}
-            </>
+          {/* Per-file setup overhead */}
+          {mode !== 'window-capacity' && (
+            <div className={styles.fieldGroup}>
+              <label htmlFor="file-overhead-input" className={styles.fieldLabel}>
+                Estimated Per-File Setup Overhead (sec)
+              </label>
+              <div className={styles.inputWithUnit}>
+                <input
+                  id="file-overhead-input"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className={styles.textInput}
+                  value={overheadInput}
+                  onChange={(e) => setOverheadInput(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+              <span className={styles.fieldHint}>
+                Optional planning input to model per-file setup or processing time when you have a measured or assumed value.
+              </span>
+            </div>
           )}
         </div>
+      </section>
 
-        {/* Action Controls (Reset & Copy Link) */}
-        <div className={styles.actionsRow}>
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`${styles.actionButton} ${styles.resetButton}`}
-            title="Reset to default calculator values"
-          >
-            Reset
-          </button>
+      {/* Calculation Results Card */}
+      {mode === 'upload-time' && modeAResult && (
+        <>
+          {modeAResult.success ? (
+            <div className={styles.resultCard}>
+              <div className={styles.resultHeader}>
+                <span className={styles.resultTitle}>Estimated Upload Time</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                  Total Duration
+                </span>
+              </div>
+              <div className={styles.primaryResult}>
+                {modeAResult.data.formattedDuration}
+              </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {copyFeedback && <span className={styles.copiedNotice}>{copyFeedback}</span>}
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className={styles.actionButton}
-              title="Copy link to current calculation settings"
-            >
-              Copy link
-            </button>
-          </div>
-        </div>
+              <div className={styles.decisionBanner}>
+                {modeAResult.data.decisionNote}
+              </div>
+
+              <div className={styles.secondaryGrid}>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Effective Upstream Speed</div>
+                  <div className={styles.metricValue}>{modeAResult.data.effectiveSpeedFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Reserved Bandwidth</div>
+                  <div className={styles.metricValue}>{modeAResult.data.reservedSpeedFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Data Throughput Rate</div>
+                  <div className={styles.metricValue}>{modeAResult.data.dataPerHourFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Pure Payload Transfer</div>
+                  <div className={styles.metricValue}>{modeAResult.data.formattedPayloadDuration}</div>
+                </div>
+                {modeAResult.data.overheadSeconds > 0 && (
+                  <div className={styles.metricBox}>
+                    <div className={styles.metricLabel}>Batch File Overhead</div>
+                    <div className={styles.metricValue}>{modeAResult.data.formattedOverheadDuration}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className={styles.errorAlert} role="alert">
+              {modeAResult.error}
+            </div>
+          )}
+        </>
+      )}
+
+      {mode === 'required-speed' && modeBResult && (
+        <>
+          {modeBResult.success ? (
+            <div className={styles.resultCard}>
+              <div className={styles.resultHeader}>
+                <span className={styles.resultTitle}>Required Upload Rate</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                  Under Current Planning Inputs
+                </span>
+              </div>
+              <div className={styles.primaryResult}>
+                {modeBResult.data.requiredNominalSpeedFormatted}
+              </div>
+
+              <div className={styles.decisionBanner}>
+                {modeBResult.data.decisionNote}
+              </div>
+
+              <div className={styles.secondaryGrid}>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Required Effective Speed</div>
+                  <div className={styles.metricValue}>{modeBResult.data.requiredEffectiveSpeedFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Usable Upload Window</div>
+                  <div className={styles.metricValue}>{modeBResult.data.usableWindowFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Batch Setup Overhead</div>
+                  <div className={styles.metricValue}>{modeBResult.data.formattedOverheadDuration}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Reserved Bandwidth Safety</div>
+                  <div className={styles.metricValue}>{modeBResult.data.reservedBandwidthPercent}%</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.errorAlert} role="alert">
+              {modeBResult.error}
+            </div>
+          )}
+        </>
+      )}
+
+      {mode === 'window-capacity' && modeCResult && (
+        <>
+          {modeCResult.success ? (
+            <div className={styles.resultCard}>
+              <div className={styles.resultHeader}>
+                <span className={styles.resultTitle}>Estimated Uploadable Data</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                  In This Window
+                </span>
+              </div>
+              <div className={styles.primaryResult}>
+                {modeCResult.data.maximumPayloadFormatted}
+              </div>
+
+              <div className={styles.decisionBanner}>
+                {modeCResult.data.decisionNote}
+              </div>
+
+              <div className={styles.secondaryGrid}>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Effective Upstream Speed</div>
+                  <div className={styles.metricValue}>{modeCResult.data.effectiveSpeedFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Transfer Rate per Hour</div>
+                  <div className={styles.metricValue}>{modeCResult.data.dataPerHourFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Usable Upload Window</div>
+                  <div className={styles.metricValue}>{modeCResult.data.usableWindowFormatted}</div>
+                </div>
+                <div className={styles.metricBox}>
+                  <div className={styles.metricLabel}>Reserved Bandwidth Buffer</div>
+                  <div className={styles.metricValue}>{modeCResult.data.reservedSpeedFormatted}</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.errorAlert} role="alert">
+              {modeCResult.error}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Share / Deep Link Actions */}
+      <div className={styles.actionsRow}>
+        {copyFeedback && <span className={styles.feedbackBadge}>{copyFeedback}</span>}
+        <button
+          type="button"
+          onClick={handleShare}
+          className={styles.shareBtn}
+          title="Copy shareable link with current upload parameters"
+        >
+          <span>Share Parameters</span>
+        </button>
       </div>
     </div>
   );
