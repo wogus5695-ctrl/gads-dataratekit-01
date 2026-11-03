@@ -125,6 +125,9 @@ export default function AboutPage() {
               <strong>Deterministic Results:</strong> Calculations are strictly deterministic outcomes of user-supplied inputs and selected planning assumptions, providing predictable baselines for technical planning.
             </li>
           </ul>
+          <p>
+            For complete mathematical formulas, pipeline definitions, unit conversion tables, and boundary handling rules across all utilities, review our detailed <Link href="/methodology">Calculation Methodology</Link> documentation.
+          </p>
         </div>
       </section>
 

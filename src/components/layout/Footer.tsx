@@ -13,6 +13,7 @@ const TOOL_LINKS = [
 
 const LEGAL_LINKS = [
   { href: '/about', label: 'About' },
+  { href: '/methodology', label: 'Methodology' },
   { href: '/contact', label: 'Contact' },
   { href: '/privacy', label: 'Privacy Policy' },
   { href: '/terms', label: 'Terms of Use' },

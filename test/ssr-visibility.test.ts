@@ -82,4 +82,37 @@ describe('Core Utilities SSR / Initial HTML Visibility', () => {
     assert.ok(html.includes('Video stream'), 'Default video activity must be present');
     assert.ok(html.includes('Audio stream'), 'Default audio activity must be present');
   });
+
+  it('Calculation Methodology (/methodology) initial HTML renders H1, links to all 6 tools, and core standards', () => {
+    const htmlPath = path.join(serverAppDir, 'methodology.html');
+    assert.ok(fs.existsSync(htmlPath), 'methodology.html must exist after build');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+
+    // Must NOT contain fallback loader or error
+    assert.strictEqual(html.includes('Loading...'), false, 'Must not contain Loading... fallback');
+    assert.strictEqual(html.includes('Application error'), false, 'Must not contain Application error');
+    assert.strictEqual(html.includes('client-side exception'), false, 'Must not contain client-side exception');
+
+    // Must contain H1
+    assert.ok(html.includes('Calculation Methodology'), 'H1 title must be present');
+
+    // Must contain links to all 6 Core Calculators
+    assert.ok(html.includes('href="/"'), 'Must link to Download Calculator');
+    assert.ok(html.includes('href="/upload-time-calculator"'), 'Must link to Upload Calculator');
+    assert.ok(html.includes('href="/file-transfer-time-calculator"'), 'Must link to File Transfer Calculator');
+    assert.ok(html.includes('href="/mbps-to-mbs"'), 'Must link to Mbps to MB/s Converter');
+    assert.ok(html.includes('href="/video-file-size-calculator"'), 'Must link to Video Calculator');
+    assert.ok(html.includes('href="/data-usage-calculator"'), 'Must link to Data Usage Calculator');
+
+    // Must contain core section headings
+    assert.ok(html.includes('Core Unit Conventions'), 'Must include Core Unit Conventions heading');
+    assert.ok(html.includes('Download Calculation Model'), 'Must include Download Calculation Model heading');
+    assert.ok(html.includes('Upload Planning Model'), 'Must include Upload Planning Model heading');
+    assert.ok(html.includes('File Transfer Bottleneck Model'), 'Must include File Transfer Bottleneck Model heading');
+    assert.ok(html.includes('Mbps ↔ MB/s Conversion Model') || html.includes('Mbps &harr; MB/s Conversion Model'), 'Must include Mbps Conversion Model heading');
+    assert.ok(html.includes('Video File Size Model'), 'Must include Video Model heading');
+    assert.ok(html.includes('Internet Data Usage Model'), 'Must include Data Usage Model heading');
+    assert.ok(html.includes('Practical Limitations') && html.includes('Environmental Variance'), 'Must include Limitations heading');
+    assert.ok(html.includes('Automated Testing') && html.includes('Verification Policy'), 'Must include Testing heading');
+  });
 });

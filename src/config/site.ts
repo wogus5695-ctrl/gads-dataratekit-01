@@ -120,6 +120,7 @@ export const INDEXABLE_ROUTES = [
   '/data-usage-calculator',
   '/mbps-to-mbs',
   '/about',
+  '/methodology',
   '/contact',
   '/privacy',
   '/terms',
