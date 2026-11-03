@@ -1,29 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  CalculationMode,
+  DownloadMode,
   FileSizeUnit,
   SpeedUnit,
-  DECIMAL_FILE_UNITS,
-  BINARY_FILE_UNITS,
-  BIT_SPEED_UNITS,
-  BYTE_SPEED_UNITS,
-  calculateTransferTime,
-  calculateRequiredSpeed,
-  calculateTransferableSize,
-  convertSpeed,
-  formatNumber,
-  parseCalculatorState,
-  serializeCalculatorState,
-  validatePositiveNumber,
-} from '@/lib/transfer';
+  TimeUnit,
+  calculateDownloadTime,
+  calculateDownloadBottleneck,
+  calculateRequiredDownloadSpeed,
+  parseDownloadUrlState,
+  serializeDownloadUrlState,
+  DEFAULT_DOWNLOAD_STATE,
+} from '@/lib/download';
 import styles from './DownloadCalculator.module.css';
 
-const UI_LOCALE = 'en-US';
-
-type TimeUnit = 'seconds' | 'minutes' | 'hours' | 'days';
+const DECIMAL_FILE_UNITS: FileSizeUnit[] = ['KB', 'MB', 'GB', 'TB'];
+const BINARY_FILE_UNITS: FileSizeUnit[] = ['KiB', 'MiB', 'GiB', 'TiB'];
+const BIT_SPEED_UNITS: SpeedUnit[] = ['Kbps', 'Mbps', 'Gbps'];
+const BYTE_SPEED_UNITS: SpeedUnit[] = ['KB/s', 'MB/s', 'GB/s'];
 
 const TIME_UNIT_MULTIPLIERS: Record<TimeUnit, number> = {
   seconds: 1,
@@ -33,6 +29,7 @@ const TIME_UNIT_MULTIPLIERS: Record<TimeUnit, number> = {
 };
 
 const EFFICIENCY_PRESETS = [100, 95, 90, 85, 80] as const;
+const BANDWIDTH_SHARE_PRESETS = [100, 90, 75, 50] as const;
 
 function DownloadUrlSync({
   onSync,
@@ -48,26 +45,34 @@ function DownloadUrlSync({
 
 export function DownloadCalculator() {
   // Mode state
-  const [mode, setMode] = useState<CalculationMode>('find-time');
+  const [mode, setMode] = useState<DownloadMode>(DEFAULT_DOWNLOAD_STATE.mode);
 
-  // Input states (strings for natural typing of decimals & deletion)
-  const [sizeInput, setSizeInput] = useState<string>('100');
-  const [sizeUnit, setSizeUnit] = useState<FileSizeUnit>('GB');
+  // Input states (strings for natural typing & deletion)
+  const [sizeInput, setSizeInput] = useState<string>(DEFAULT_DOWNLOAD_STATE.fileSize.toString());
+  const [sizeUnit, setSizeUnit] = useState<FileSizeUnit>(DEFAULT_DOWNLOAD_STATE.fileSizeUnit);
 
-  const [speedInput, setSpeedInput] = useState<string>('100');
-  const [speedUnit, setSpeedUnit] = useState<SpeedUnit>('Mbps');
+  const [speedInput, setSpeedInput] = useState<string>(DEFAULT_DOWNLOAD_STATE.speed.toString());
+  const [speedUnit, setSpeedUnit] = useState<SpeedUnit>(DEFAULT_DOWNLOAD_STATE.speedUnit);
 
-  const [timeInput, setTimeInput] = useState<string>('2');
-  const [timeUnit, setTimeUnit] = useState<TimeUnit>('hours');
+  const [bandwidthShare, setBandwidthShare] = useState<number>(DEFAULT_DOWNLOAD_STATE.bandwidthShare);
+  const [planningEfficiency, setPlanningEfficiency] = useState<number>(DEFAULT_DOWNLOAD_STATE.planningEfficiency);
 
+  // Optional Remote Server / CDN delivery cap
+  const [serverCapEnabled, setServerCapEnabled] = useState<boolean>(DEFAULT_DOWNLOAD_STATE.serverCapEnabled);
+  const [serverCapInput, setServerCapInput] = useState<string>(DEFAULT_DOWNLOAD_STATE.serverCap.toString());
+  const [serverCapUnit, setServerCapUnit] = useState<SpeedUnit>(DEFAULT_DOWNLOAD_STATE.serverCapUnit);
+
+  // Mode C target window inputs
+  const [targetDurationInput, setTargetDurationInput] = useState<string>(
+    DEFAULT_DOWNLOAD_STATE.targetDuration.toString()
+  );
+  const [targetDurationUnit, setTargetDurationUnit] = useState<TimeUnit>(
+    DEFAULT_DOWNLOAD_STATE.targetDurationUnit
+  );
   const [targetSpeedUnit, setTargetSpeedUnit] = useState<SpeedUnit>('Mbps');
-  const [targetSizeUnit, setTargetSizeUnit] = useState<FileSizeUnit>('GB');
 
-  // Efficiency / Throughput assumption (default: 90%)
-  const [efficiency, setEfficiency] = useState<number>(90);
-
-  // Client hydration detection (for local finish time)
-  const [isMounted, setIsMounted] = useState(false);
+  // Hydration state for client-only finish time
+  const [isMounted, setIsMounted] = useState<boolean>(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,755 +83,646 @@ export function DownloadCalculator() {
   const handleUrlSync = useCallback((params: ReturnType<typeof useSearchParams>) => {
     if (!params || Array.from(params.keys()).length === 0) return;
 
-    const parsed = parseCalculatorState(params);
+    const parsed = parseDownloadUrlState(params);
     setMode(parsed.mode);
     setSizeInput(parsed.fileSize.toString());
     setSizeUnit(parsed.fileSizeUnit);
     setSpeedInput(parsed.speed.toString());
     setSpeedUnit(parsed.speedUnit);
-
-    // If efficiency was explicitly in searchParams, respect it, otherwise default to 90
-    if (params.has('efficiency')) {
-      setEfficiency(parsed.efficiencyPercent);
-    } else {
-      setEfficiency(90);
-    }
-
-    if (params.has('time')) {
-      const sec = parsed.durationSeconds;
-      if (sec >= 86400 && sec % 86400 === 0) {
-        setTimeInput((sec / 86400).toString());
-        setTimeUnit('days');
-      } else if (sec >= 3600 && sec % 3600 === 0) {
-        setTimeInput((sec / 3600).toString());
-        setTimeUnit('hours');
-      } else if (sec >= 60 && sec % 60 === 0) {
-        setTimeInput((sec / 60).toString());
-        setTimeUnit('minutes');
-      } else {
-        setTimeInput(sec.toString());
-        setTimeUnit('seconds');
-      }
-    }
+    setBandwidthShare(parsed.bandwidthShare);
+    setPlanningEfficiency(parsed.planningEfficiency);
+    setServerCapEnabled(parsed.serverCapEnabled);
+    setServerCapInput(parsed.serverCap.toString());
+    setServerCapUnit(parsed.serverCapUnit);
+    setTargetDurationInput(parsed.targetDuration.toString());
+    setTargetDurationUnit(parsed.targetDurationUnit);
   }, []);
 
-  // Validations
-  const sizeValidation = useMemo(
-    () => validatePositiveNumber(sizeInput, 'File size'),
-    [sizeInput]
-  );
-  const speedValidation = useMemo(
-    () => validatePositiveNumber(speedInput, 'Download speed'),
-    [speedInput]
-  );
-  const timeValidation = useMemo(
-    () => validatePositiveNumber(timeInput, 'Time'),
-    [timeInput]
-  );
+  // Parse numeric values safely
+  const numericSize = parseFloat(sizeInput);
+  const numericSpeed = parseFloat(speedInput);
+  const numericServerCap = parseFloat(serverCapInput);
+  const numericTargetDuration = parseFloat(targetDurationInput);
 
-  // Mode 1: Find Time Calculation
-  const timeCalculation = useMemo(() => {
-    if (!sizeValidation.isValid || !speedValidation.isValid) {
-      return null;
-    }
+  const targetDurationSeconds =
+    Number.isFinite(numericTargetDuration) && numericTargetDuration > 0
+      ? numericTargetDuration * TIME_UNIT_MULTIPLIERS[targetDurationUnit]
+      : 0;
 
-    // Theoretical minimum at 100% (PRIMARY)
-    const theoretical = calculateTransferTime({
-      fileSize: sizeValidation.value,
+  // Execute calculations based on active mode
+  const modeAResult = useMemo(() => {
+    if (mode !== 'download-time') return null;
+    return calculateDownloadTime({
+      fileSize: numericSize,
       fileSizeUnit: sizeUnit,
-      speed: speedValidation.value,
-      speedUnit,
-      efficiencyPercent: 100,
+      connectionSpeed: numericSpeed,
+      connectionSpeedUnit: speedUnit,
+      availableBandwidthPercent: bandwidthShare,
+      serverCapEnabled,
+      serverCapSpeed: numericServerCap,
+      serverCapSpeedUnit: serverCapUnit,
+      planningEfficiencyPercent: planningEfficiency,
     });
-
-    // Practical estimate at chosen efficiency (SECONDARY)
-    const estimated = calculateTransferTime({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      speed: speedValidation.value,
-      speedUnit,
-      efficiencyPercent: efficiency,
-    });
-
-    // Equivalent byte rate (e.g. 100 Mbps -> 12.5 MB/s)
-    const equivalentRate = convertSpeed(speedValidation.value, speedUnit, 'MB/s');
-
-    // Effective speed in original speed unit
-    const effectiveSpeedValue = speedValidation.value * (efficiency / 100);
-
-    return {
-      theoretical,
-      estimated,
-      equivalentRate,
-      effectiveSpeedValue,
-    };
-  }, [sizeValidation, speedValidation, sizeUnit, speedUnit, efficiency]);
-
-  // Estimated Finish Time calculation (visitor's local timezone formatted in English en-US AM/PM)
-  const finishTimeString = useMemo(() => {
-    if (!isMounted || !timeCalculation?.estimated.success) return null;
-    const seconds = timeCalculation.estimated.data.seconds;
-    const finishDate = new Date(Date.now() + seconds * 1000);
-    return new Intl.DateTimeFormat(UI_LOCALE, {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(finishDate);
-  }, [isMounted, timeCalculation]);
-
-  // Mode 2: Find Required Speed Calculation
-  const requiredSpeedCalculation = useMemo(() => {
-    if (!sizeValidation.isValid || !timeValidation.isValid) {
-      return null;
-    }
-
-    const totalSeconds = timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit];
-
-    // Theoretical speed at 100% (PRIMARY)
-    const theoretical = calculateRequiredSpeed({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      durationSeconds: totalSeconds,
-      targetSpeedUnit,
-      efficiencyPercent: 100,
-    });
-
-    // Estimated speed needed at chosen efficiency (SECONDARY)
-    const estimated = calculateRequiredSpeed({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      durationSeconds: totalSeconds,
-      targetSpeedUnit,
-      efficiencyPercent: efficiency,
-    });
-
-    return { theoretical, estimated, totalSeconds };
-  }, [sizeValidation, timeValidation, sizeUnit, timeUnit, targetSpeedUnit, efficiency]);
-
-  // Mode 3: Find Downloadable Size Calculation
-  const downloadableSizeCalculation = useMemo(() => {
-    if (!speedValidation.isValid || !timeValidation.isValid) {
-      return null;
-    }
-
-    const totalSeconds = timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit];
-
-    // Theoretical size at 100% (PRIMARY)
-    const theoretical = calculateTransferableSize({
-      speed: speedValidation.value,
-      speedUnit,
-      durationSeconds: totalSeconds,
-      targetSizeUnit,
-      efficiencyPercent: 100,
-    });
-
-    // Estimated size transferable at chosen efficiency (SECONDARY)
-    const estimated = calculateTransferableSize({
-      speed: speedValidation.value,
-      speedUnit,
-      durationSeconds: totalSeconds,
-      targetSizeUnit,
-      efficiencyPercent: efficiency,
-    });
-
-    return { theoretical, estimated, totalSeconds };
-  }, [speedValidation, timeValidation, speedUnit, timeUnit, targetSizeUnit, efficiency]);
-
-  // Reset to default state
-  const handleReset = useCallback(() => {
-    setMode('find-time');
-    setSizeInput('100');
-    setSizeUnit('GB');
-    setSpeedInput('100');
-    setSpeedUnit('Mbps');
-    setTimeInput('2');
-    setTimeUnit('hours');
-    setTargetSpeedUnit('Mbps');
-    setTargetSizeUnit('GB');
-    setEfficiency(90);
-    setCopyFeedback(null);
-  }, []);
-
-  // Copy shareable link
-  const handleCopyLink = useCallback(async () => {
-    if (typeof window === 'undefined') return;
-
-    const totalSeconds = timeValidation.isValid
-      ? timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit]
-      : 7200;
-
-    const query = serializeCalculatorState({
-      mode,
-      fileSize: sizeValidation.isValid ? sizeValidation.value : 100,
-      fileSizeUnit: sizeUnit,
-      speed: speedValidation.isValid ? speedValidation.value : 100,
-      speedUnit,
-      durationSeconds: totalSeconds,
-      efficiencyPercent: efficiency,
-    });
-
-    const shareUrl = `${window.location.origin}${window.location.pathname}?${query}`;
-
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-        setCopyFeedback('Link copied!');
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = shareUrl;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        setCopyFeedback('Link copied!');
-      }
-    } catch {
-      setCopyFeedback('Unable to copy');
-    }
-
-    setTimeout(() => {
-      setCopyFeedback(null);
-    }, 2500);
   }, [
     mode,
-    sizeValidation,
+    numericSize,
     sizeUnit,
-    speedValidation,
+    numericSpeed,
     speedUnit,
-    timeValidation,
-    timeUnit,
-    efficiency,
+    bandwidthShare,
+    serverCapEnabled,
+    numericServerCap,
+    serverCapUnit,
+    planningEfficiency,
   ]);
 
+  const modeBResult = useMemo(() => {
+    if (mode !== 'bottleneck') return null;
+    return calculateDownloadBottleneck({
+      connectionSpeed: numericSpeed,
+      connectionSpeedUnit: speedUnit,
+      availableBandwidthPercent: bandwidthShare,
+      serverCapEnabled,
+      serverCapSpeed: numericServerCap,
+      serverCapSpeedUnit: serverCapUnit,
+      planningEfficiencyPercent: planningEfficiency,
+    });
+  }, [
+    mode,
+    numericSpeed,
+    speedUnit,
+    bandwidthShare,
+    serverCapEnabled,
+    numericServerCap,
+    serverCapUnit,
+    planningEfficiency,
+  ]);
+
+  const modeCResult = useMemo(() => {
+    if (mode !== 'required-speed') return null;
+    return calculateRequiredDownloadSpeed({
+      fileSize: numericSize,
+      fileSizeUnit: sizeUnit,
+      targetDurationSeconds,
+      availableBandwidthPercent: bandwidthShare,
+      serverCapEnabled,
+      serverCapSpeed: numericServerCap,
+      serverCapSpeedUnit: serverCapUnit,
+      planningEfficiencyPercent: planningEfficiency,
+      targetSpeedUnit,
+    });
+  }, [
+    mode,
+    numericSize,
+    sizeUnit,
+    targetDurationSeconds,
+    bandwidthShare,
+    serverCapEnabled,
+    numericServerCap,
+    serverCapUnit,
+    planningEfficiency,
+    targetSpeedUnit,
+  ]);
+
+  // Formatted local finish time for Mode A
+  const estimatedFinishTime = useMemo(() => {
+    if (!isMounted || !modeAResult?.success) return null;
+    const now = new Date();
+    const finishDate = new Date(now.getTime() + modeAResult.data.totalSeconds * 1000);
+    return finishDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }, [isMounted, modeAResult]);
+
+  // Copy shareable link
+  const handleCopyLink = useCallback(() => {
+    const currentState = {
+      mode,
+      fileSize: Number.isFinite(numericSize) && numericSize > 0 ? numericSize : DEFAULT_DOWNLOAD_STATE.fileSize,
+      fileSizeUnit: sizeUnit,
+      speed: Number.isFinite(numericSpeed) && numericSpeed > 0 ? numericSpeed : DEFAULT_DOWNLOAD_STATE.speed,
+      speedUnit: speedUnit,
+      bandwidthShare,
+      planningEfficiency,
+      serverCapEnabled,
+      serverCap: Number.isFinite(numericServerCap) && numericServerCap > 0 ? numericServerCap : DEFAULT_DOWNLOAD_STATE.serverCap,
+      serverCapUnit,
+      targetDuration: Number.isFinite(numericTargetDuration) && numericTargetDuration > 0 ? numericTargetDuration : DEFAULT_DOWNLOAD_STATE.targetDuration,
+      targetDurationUnit,
+    };
+
+    const qs = serializeDownloadUrlState(currentState);
+    const url = `${window.location.origin}${window.location.pathname}${qs}`;
+
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopyFeedback('Link copied!');
+        setTimeout(() => setCopyFeedback(null), 2500);
+      })
+      .catch(() => {
+        setCopyFeedback('Failed to copy');
+        setTimeout(() => setCopyFeedback(null), 2500);
+      });
+  }, [
+    mode,
+    numericSize,
+    sizeUnit,
+    numericSpeed,
+    speedUnit,
+    bandwidthShare,
+    planningEfficiency,
+    serverCapEnabled,
+    numericServerCap,
+    serverCapUnit,
+    numericTargetDuration,
+    targetDurationUnit,
+  ]);
+
+  const handleReset = useCallback(() => {
+    setMode(DEFAULT_DOWNLOAD_STATE.mode);
+    setSizeInput(DEFAULT_DOWNLOAD_STATE.fileSize.toString());
+    setSizeUnit(DEFAULT_DOWNLOAD_STATE.fileSizeUnit);
+    setSpeedInput(DEFAULT_DOWNLOAD_STATE.speed.toString());
+    setSpeedUnit(DEFAULT_DOWNLOAD_STATE.speedUnit);
+    setBandwidthShare(DEFAULT_DOWNLOAD_STATE.bandwidthShare);
+    setPlanningEfficiency(DEFAULT_DOWNLOAD_STATE.planningEfficiency);
+    setServerCapEnabled(DEFAULT_DOWNLOAD_STATE.serverCapEnabled);
+    setServerCapInput(DEFAULT_DOWNLOAD_STATE.serverCap.toString());
+    setServerCapUnit(DEFAULT_DOWNLOAD_STATE.serverCapUnit);
+    setTargetDurationInput(DEFAULT_DOWNLOAD_STATE.targetDuration.toString());
+    setTargetDurationUnit(DEFAULT_DOWNLOAD_STATE.targetDurationUnit);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+
   return (
-    <div className={styles.calculatorContainer} aria-label="Download Time Calculator Tool">
-      <React.Suspense fallback={null}>
+    <div className={styles.calculatorContainer}>
+      <Suspense fallback={null}>
         <DownloadUrlSync onSync={handleUrlSync} />
-      </React.Suspense>
-      {/* Mode Switcher / Segmented Control */}
+      </Suspense>
+
+      {/* Mode Switcher */}
       <div className={styles.modeSelectorRow}>
-        <span className={styles.modeSelectorLabel} id="mode-selector-label">
-          Calculate
-        </span>
-        <div
-          className={styles.tabList}
-          role="tablist"
-          aria-labelledby="mode-selector-label"
-        >
+        <span className={styles.modeSelectorLabel}>Calculation Mode</span>
+        <div className={styles.tabList} role="tablist" aria-label="Calculation Mode">
           <button
             type="button"
             role="tab"
-            id="tab-find-time"
-            aria-selected={mode === 'find-time'}
-            aria-controls="calculator-panel"
-            className={`${styles.tabButton} ${
-              mode === 'find-time' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-time')}
+            aria-selected={mode === 'download-time'}
+            className={`${styles.tabButton} ${mode === 'download-time' ? styles.tabButtonActive : ''}`}
+            onClick={() => setMode('download-time')}
           >
-            Time
+            Download Time
           </button>
           <button
             type="button"
             role="tab"
-            id="tab-find-speed"
-            aria-selected={mode === 'find-speed'}
-            aria-controls="calculator-panel"
-            className={`${styles.tabButton} ${
-              mode === 'find-speed' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-speed')}
+            aria-selected={mode === 'bottleneck'}
+            className={`${styles.tabButton} ${mode === 'bottleneck' ? styles.tabButtonActive : ''}`}
+            onClick={() => setMode('bottleneck')}
           >
-            Required speed
+            Download Bottleneck
           </button>
           <button
             type="button"
             role="tab"
-            id="tab-find-size"
-            aria-selected={mode === 'find-size'}
-            aria-controls="calculator-panel"
-            className={`${styles.tabButton} ${
-              mode === 'find-size' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-size')}
+            aria-selected={mode === 'required-speed'}
+            className={`${styles.tabButton} ${mode === 'required-speed' ? styles.tabButtonActive : ''}`}
+            onClick={() => setMode('required-speed')}
           >
-            File size
+            Required Connection Speed
           </button>
         </div>
       </div>
 
-      {/* Main Form Fields */}
-      <div id="calculator-panel" role="tabpanel" aria-labelledby={`tab-${mode}`}>
-        <div className={`${styles.formGrid} ${styles.formGridTwoCol}`}>
-          {/* File Size Input (Used in Mode 1 & Mode 2) */}
-          {(mode === 'find-time' || mode === 'find-speed') && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="file-size-input" className={styles.label}>
-                File Size
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !sizeValidation.isValid ? styles.inputRowError : ''
-                }`}
+      {/* Primary Input Grid */}
+      <div className={`${styles.formGrid} ${mode !== 'bottleneck' ? styles.formGridTwoCol : ''}`}>
+        {/* File Size Input (Modes A & C) */}
+        {mode !== 'bottleneck' && (
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>File Size</label>
+            <div className={styles.inputRow}>
+              <input
+                type="number"
+                min="0.001"
+                step="any"
+                className={styles.numberInput}
+                value={sizeInput}
+                onChange={(e) => setSizeInput(e.target.value)}
+                placeholder="100"
+                aria-label="File size"
+              />
+              <select
+                className={styles.unitSelect}
+                value={sizeUnit}
+                onChange={(e) => setSizeUnit(e.target.value as FileSizeUnit)}
+                aria-label="File size unit"
               >
-                <input
-                  id="file-size-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={sizeInput}
-                  onChange={(e) => setSizeInput(e.target.value)}
-                  placeholder="e.g. 100"
-                  aria-invalid={!sizeValidation.isValid}
-                  aria-describedby={!sizeValidation.isValid ? 'size-error' : undefined}
-                  className={styles.numberInput}
-                />
-                <select
-                  id="file-size-unit"
-                  value={sizeUnit}
-                  onChange={(e) => setSizeUnit(e.target.value as FileSizeUnit)}
-                  aria-label="File size unit"
-                  className={styles.unitSelect}
-                >
-                  <optgroup label="Standard (Decimal)">
-                    {DECIMAL_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Binary (IEC)">
-                    {BINARY_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              {!sizeValidation.isValid && (
-                <span id="size-error" className={styles.errorMessage}>
-                  {sizeValidation.error}
-                </span>
-              )}
+                <optgroup label="Decimal (1000)">
+                  {DECIMAL_FILE_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Binary (1024)">
+                  {BINARY_FILE_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Download Speed Input (Used in Mode 1 & Mode 3) */}
-          {(mode === 'find-time' || mode === 'find-size') && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="download-speed-input" className={styles.label}>
-                Download Speed
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !speedValidation.isValid ? styles.inputRowError : ''
-                }`}
+        {/* Internet Connection Speed (Modes A & B) */}
+        {mode !== 'required-speed' && (
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Internet Download Speed</label>
+            <div className={styles.inputRow}>
+              <input
+                type="number"
+                min="0.001"
+                step="any"
+                className={styles.numberInput}
+                value={speedInput}
+                onChange={(e) => setSpeedInput(e.target.value)}
+                placeholder="100"
+                aria-label="Internet connection speed"
+              />
+              <select
+                className={styles.unitSelect}
+                value={speedUnit}
+                onChange={(e) => setSpeedUnit(e.target.value as SpeedUnit)}
+                aria-label="Internet speed unit"
               >
-                <input
-                  id="download-speed-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={speedInput}
-                  onChange={(e) => setSpeedInput(e.target.value)}
-                  placeholder="e.g. 100"
-                  aria-invalid={!speedValidation.isValid}
-                  aria-describedby={!speedValidation.isValid ? 'speed-error' : undefined}
-                  className={styles.numberInput}
-                />
-                <select
-                  id="download-speed-unit"
-                  value={speedUnit}
-                  onChange={(e) => setSpeedUnit(e.target.value as SpeedUnit)}
-                  aria-label="Download speed unit"
-                  className={styles.unitSelect}
-                >
-                  <optgroup label="ISP / Telecom (Bits)">
-                    {BIT_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Transfer Rate (Bytes)">
-                    {BYTE_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              {!speedValidation.isValid && (
-                <span id="speed-error" className={styles.errorMessage}>
-                  {speedValidation.error}
-                </span>
-              )}
+                <optgroup label="Broadband / Bit Rate">
+                  {BIT_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="File Rate / Bytes">
+                  {BYTE_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Time Duration Input (Used in Mode 2 & Mode 3) */}
-          {(mode === 'find-speed' || mode === 'find-size') && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="time-duration-input" className={styles.label}>
-                {mode === 'find-speed' ? 'Desired Download Time' : 'Available Time'}
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !timeValidation.isValid ? styles.inputRowError : ''
-                }`}
+        {/* Target Deadline (Mode C) */}
+        {mode === 'required-speed' && (
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Target Completion Time</label>
+            <div className={styles.inputRow}>
+              <input
+                type="number"
+                min="0.1"
+                step="any"
+                className={styles.numberInput}
+                value={targetDurationInput}
+                onChange={(e) => setTargetDurationInput(e.target.value)}
+                placeholder="2"
+                aria-label="Target duration"
+              />
+              <select
+                className={styles.unitSelect}
+                value={targetDurationUnit}
+                onChange={(e) => setTargetDurationUnit(e.target.value as TimeUnit)}
+                aria-label="Target duration unit"
               >
-                <input
-                  id="time-duration-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={timeInput}
-                  onChange={(e) => setTimeInput(e.target.value)}
-                  placeholder="e.g. 2"
-                  aria-invalid={!timeValidation.isValid}
-                  aria-describedby={!timeValidation.isValid ? 'time-error' : undefined}
-                  className={styles.numberInput}
-                />
-                <select
-                  id="time-duration-unit"
-                  value={timeUnit}
-                  onChange={(e) => setTimeUnit(e.target.value as TimeUnit)}
-                  aria-label="Time duration unit"
-                  className={styles.unitSelect}
-                >
-                  <option value="seconds">seconds</option>
-                  <option value="minutes">minutes</option>
-                  <option value="hours">hours</option>
-                  <option value="days">days</option>
-                </select>
-              </div>
-              {!timeValidation.isValid && (
-                <span id="time-error" className={styles.errorMessage}>
-                  {timeValidation.error}
-                </span>
-              )}
+                <option value="seconds">seconds</option>
+                <option value="minutes">minutes</option>
+                <option value="hours">hours</option>
+                <option value="days">days</option>
+              </select>
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {/* Target Speed Unit (Mode 2 only) */}
-          {mode === 'find-speed' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="target-speed-unit" className={styles.label}>
-                Result Speed Unit
-              </label>
-              <div className={styles.inputRow}>
-                <select
-                  id="target-speed-unit"
-                  value={targetSpeedUnit}
-                  onChange={(e) => setTargetSpeedUnit(e.target.value as SpeedUnit)}
-                  className={styles.unitSelect}
-                  style={{ width: '100%', borderLeft: 'none' }}
-                >
-                  <optgroup label="Bits">
-                    {BIT_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Bytes">
-                    {BYTE_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-          )}
+      {/* Path Planning Assumptions Section */}
+      <details className={styles.estimateDisclosure} open>
+        <summary className={styles.estimateSummary}>
+          <span>Internet Path Planning Assumptions</span>
+          <span className={styles.disclosureIndicator}>▼</span>
+        </summary>
 
-          {/* Target Size Unit (Mode 3 only) */}
-          {mode === 'find-size' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="target-size-unit" className={styles.label}>
-                Result Size Unit
-              </label>
-              <div className={styles.inputRow}>
-                <select
-                  id="target-size-unit"
-                  value={targetSizeUnit}
-                  onChange={(e) => setTargetSizeUnit(e.target.value as FileSizeUnit)}
-                  className={styles.unitSelect}
-                  style={{ width: '100%', borderLeft: 'none' }}
-                >
-                  <optgroup label="Standard (Decimal)">
-                    {DECIMAL_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Binary (IEC)">
-                    {BINARY_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Progressive Disclosure: Estimate / Throughput Settings */}
-        <details className={styles.estimateDisclosure}>
-          <summary className={styles.estimateSummary}>
-            Estimate settings · {efficiency}% throughput
-            <span className={styles.disclosureIndicator} aria-hidden="true">
-              ▾
-            </span>
-          </summary>
-          <div className={styles.estimateBody}>
-            <div
-              className={styles.throughputPills}
-              role="group"
-              aria-label="Throughput percentage options"
-            >
-              {EFFICIENCY_PRESETS.map((p) => (
+        <div className={styles.estimateBody}>
+          {/* Bandwidth Share */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label className={styles.label} style={{ fontSize: '0.8125rem' }}>
+              Bandwidth available to this download: {bandwidthShare}%
+            </label>
+            <div className={styles.throughputPills}>
+              {BANDWIDTH_SHARE_PRESETS.map((pct) => (
                 <button
-                  key={p}
+                  key={pct}
                   type="button"
-                  aria-pressed={efficiency === p}
-                  className={`${styles.pillButton} ${
-                    efficiency === p ? styles.pillButtonActive : ''
-                  }`}
-                  onClick={() => setEfficiency(p)}
+                  className={`${styles.pillButton} ${bandwidthShare === pct ? styles.pillButtonActive : ''}`}
+                  onClick={() => setBandwidthShare(pct)}
                 >
-                  {p === 100 ? '100% (Theoretical)' : `${p}%`}
+                  {pct}% {pct === 100 ? '(Full Line)' : ''}
                 </button>
               ))}
             </div>
-            <p className={styles.throughputHelp}>
-              90% is used as a practical planning assumption, not a guarantee. Actual download
-              speeds can vary because of Wi-Fi conditions, server limits, network congestion, and
-              protocol overhead.
-              {mode === 'find-time' && timeCalculation && (
-                <> (Effective speed: {formatNumber(timeCalculation.effectiveSpeedValue)} {speedUnit})</>
-              )}
-            </p>
+            <span className={styles.throughputHelp}>
+              Allocate a partial bandwidth share if other household devices, video streaming, or background tasks share your connection.
+            </span>
           </div>
-        </details>
 
-        {/* Results Area — High-Scanning Visual Hierarchy */}
-        <div className={styles.resultCard} aria-live="polite" aria-atomic="true">
-          {/* MODE 1 RESULTS */}
-          {mode === 'find-time' && (
-            <>
-              {timeCalculation &&
-              timeCalculation.theoretical.success &&
-              timeCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT: Theoretical minimum at entered nominal speed */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Download Time</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {timeCalculation.theoretical.data.duration.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At {speedInput} {speedUnit}
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT: Practical estimate at selected throughput */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Practical estimate · {efficiency}% throughput:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {timeCalculation.estimated.data.duration.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Simplified Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Equivalent rate:</span>
-                      <span className={styles.metricVal}>
-                        {timeCalculation.equivalentRate.success
-                          ? timeCalculation.equivalentRate.data.formatted
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Finish time (local):</span>
-                      <span className={styles.metricVal}>
-                        {finishTimeString || '—'}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
+          {/* Planning Efficiency */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label className={styles.label} style={{ fontSize: '0.8125rem' }}>
+              Planning Efficiency: {planningEfficiency}%
+            </label>
+            <div className={styles.throughputPills}>
+              {EFFICIENCY_PRESETS.map((eff) => (
+                <button
+                  key={eff}
+                  type="button"
+                  className={`${styles.pillButton} ${planningEfficiency === eff ? styles.pillButtonActive : ''}`}
+                  onClick={() => setPlanningEfficiency(eff)}
                 >
-                  Please enter a valid file size and download speed to calculate download time.
+                  {eff}% {eff === 90 ? '(Default Plan)' : ''}
+                </button>
+              ))}
+            </div>
+            <span className={styles.throughputHelp}>
+              Accounts for TCP/IP packet framing, Wi-Fi variance, and transport overhead. This is an adjustable planning assumption, not a measured guarantee.
+            </span>
+          </div>
+
+          {/* Optional Remote Server / CDN Delivery Cap */}
+          <div>
+            <label className={styles.toggleRow}>
+              <input
+                type="checkbox"
+                className={styles.toggleCheckbox}
+                checked={serverCapEnabled}
+                onChange={(e) => setServerCapEnabled(e.target.checked)}
+              />
+              <span>Specify remote server / CDN delivery cap (optional)</span>
+            </label>
+
+            {serverCapEnabled && (
+              <div style={{ marginTop: '0.75rem', maxWidth: '320px' }}>
+                <div className={styles.inputRow}>
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="any"
+                    className={styles.numberInput}
+                    value={serverCapInput}
+                    onChange={(e) => setServerCapInput(e.target.value)}
+                    placeholder="25"
+                    aria-label="Server delivery cap"
+                  />
+                  <select
+                    className={styles.unitSelect}
+                    value={serverCapUnit}
+                    onChange={(e) => setServerCapUnit(e.target.value as SpeedUnit)}
+                    aria-label="Server delivery cap unit"
+                  >
+                    <optgroup label="Bytes (MB/s)">
+                      {BYTE_SPEED_UNITS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Bits (Mbps)">
+                      {BIT_SPEED_UNITS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
-              )}
-            </>
-          )}
-
-          {/* MODE 2 RESULTS */}
-          {mode === 'find-speed' && (
-            <>
-              {requiredSpeedCalculation &&
-              requiredSpeedCalculation.theoretical.success &&
-              requiredSpeedCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT: Theoretical minimum speed at 100% */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Required Speed</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {requiredSpeedCalculation.theoretical.data.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At 100% throughput
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT: Practical estimate */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Practical estimate · {efficiency}% throughput:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {requiredSpeedCalculation.estimated.data.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Target duration:</span>
-                      <span className={styles.metricVal}>
-                        {timeInput} {timeUnit}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>File size:</span>
-                      <span className={styles.metricVal}>
-                        {sizeInput} {sizeUnit}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid file size and desired duration to calculate required speed.
-                </div>
-              )}
-            </>
-          )}
-
-          {/* MODE 3 RESULTS */}
-          {mode === 'find-size' && (
-            <>
-              {downloadableSizeCalculation &&
-              downloadableSizeCalculation.theoretical.success &&
-              downloadableSizeCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT: Theoretical maximum size at 100% */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Downloadable Size</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {downloadableSizeCalculation.theoretical.data.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At 100% throughput
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT: Practical estimate */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Practical estimate · {efficiency}% throughput:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {downloadableSizeCalculation.estimated.data.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Available time:</span>
-                      <span className={styles.metricVal}>
-                        {timeInput} {timeUnit}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Connection speed:</span>
-                      <span className={styles.metricVal}>
-                        {speedInput} {speedUnit}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid speed and duration to calculate downloadable size.
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Action Controls (Reset & Copy Link) */}
-        <div className={styles.actionsRow}>
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`${styles.actionButton} ${styles.resetButton}`}
-            title="Reset to default calculator values"
-          >
-            Reset
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {copyFeedback && <span className={styles.copiedNotice}>{copyFeedback}</span>}
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className={styles.actionButton}
-              title="Copy link to current calculation settings"
-            >
-              Copy link
-            </button>
+                <span className={styles.throughputHelp}>
+                  The calculator cannot know a remote server&apos;s real delivery limit. Enable this only if you have a measured or known cap you want to include in the estimate.
+                </span>
+              </div>
+            )}
           </div>
         </div>
+      </details>
+
+      {/* RESULTS DISPLAY */}
+
+      {/* Mode A: Download Time Result */}
+      {mode === 'download-time' && modeAResult && (
+        <div className={styles.resultCard}>
+          {modeAResult.success ? (
+            <>
+              <div className={styles.primaryResultBlock}>
+                <div className={styles.primaryResultHeader}>
+                  <span className={styles.primaryResultLabel}>Estimated Download Time</span>
+                  {modeAResult.data.limitingFactor === 'server-cap' && (
+                    <span className={`${styles.badge} ${styles.badgeHighlight}`}>Server Capped</span>
+                  )}
+                </div>
+                <div className={styles.primaryResultValue}>
+                  {modeAResult.data.formattedDuration}
+                </div>
+                <div className={styles.primaryResultCaption}>
+                  Active constraint: <strong>{modeAResult.data.limitingFactorLabel}</strong>
+                  {estimatedFinishTime && ` · Estimated finish around ${estimatedFinishTime}`}
+                </div>
+              </div>
+
+              {/* Theoretical vs Planning Comparison */}
+              <div className={styles.secondaryResultBlock}>
+                <span className={styles.secondaryResultLabel}>
+                  Theoretical connection-limit time (100% nominal line):
+                </span>
+                <span className={styles.secondaryResultValue}>
+                  {modeAResult.data.formattedTheoreticalDuration}
+                </span>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className={styles.metricGrid}>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Effective Throughput</span>
+                  <span className={styles.metricBoxValue}>
+                    {modeAResult.data.effectiveMBs.toFixed(2)} MB/s
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Broadband Equivalent</span>
+                  <span className={styles.metricBoxValue}>
+                    {modeAResult.data.effectiveMbps.toFixed(1)} Mbps
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Available Line Share</span>
+                  <span className={styles.metricBoxValue}>
+                    {(modeAResult.data.availableConnectionBytesPerSec * 8 / 1e6).toFixed(1)} Mbps ({bandwidthShare}%)
+                  </span>
+                </div>
+                {modeAResult.data.serverCapBytesPerSec !== null && (
+                  <div className={styles.metricBox}>
+                    <span className={styles.metricBoxLabel}>Remote Server Cap</span>
+                    <span className={styles.metricBoxValue}>
+                      {(modeAResult.data.serverCapBytesPerSec / 1e6).toFixed(1)} MB/s
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.decisionNote}>
+                {modeAResult.data.decisionNote}
+              </div>
+            </>
+          ) : (
+            <div className={`${styles.decisionNote} ${styles.warningNote}`}>
+              {modeAResult.error}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mode B: Bottleneck Analysis Result */}
+      {mode === 'bottleneck' && modeBResult && (
+        <div className={styles.resultCard}>
+          {modeBResult.success ? (
+            <>
+              <div className={styles.primaryResultBlock}>
+                <div className={styles.primaryResultHeader}>
+                  <span className={styles.primaryResultLabel}>Path Bottleneck Analysis</span>
+                  <span className={`${styles.badge} ${styles.badgeHighlight}`}>
+                    {modeBResult.data.limitingFactorLabel}
+                  </span>
+                </div>
+                <div className={styles.primaryResultValue}>
+                  {modeBResult.data.effectiveThroughputMBs.toFixed(2)} MB/s
+                </div>
+                <div className={styles.primaryResultCaption}>
+                  Max sustainable effective throughput ({modeBResult.data.effectiveThroughputMbps.toFixed(1)} Mbps) at {modeBResult.data.planningEfficiencyPercent}% efficiency
+                </div>
+              </div>
+
+              <div className={styles.metricGrid}>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Nominal Line Rate</span>
+                  <span className={styles.metricBoxValue}>
+                    {modeBResult.data.nominalConnectionMbps.toFixed(1)} Mbps
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Bandwidth Share</span>
+                  <span className={styles.metricBoxValue}>
+                    {modeBResult.data.availableConnectionMbps.toFixed(1)} Mbps ({modeBResult.data.availableBandwidthPercent}%)
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Server / CDN Cap</span>
+                  <span className={styles.metricBoxValue}>
+                    {modeBResult.data.serverCapMBs !== null
+                      ? `${modeBResult.data.serverCapMBs.toFixed(1)} MB/s`
+                      : 'Disabled'}
+                  </span>
+                </div>
+                {modeBResult.data.connectionHeadroomPercent > 0 && (
+                  <div className={styles.metricBox}>
+                    <span className={styles.metricBoxLabel}>Unused Line Headroom</span>
+                    <span className={styles.metricBoxValue}>
+                      +{modeBResult.data.connectionHeadroomPercent.toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.decisionNote}>
+                {modeBResult.data.decisionNote}
+              </div>
+            </>
+          ) : (
+            <div className={`${styles.decisionNote} ${styles.warningNote}`}>
+              {modeBResult.error}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mode C: Required Connection Speed Result */}
+      {mode === 'required-speed' && modeCResult && (
+        <div className={styles.resultCard}>
+          {modeCResult.success ? (
+            <>
+              <div className={styles.primaryResultBlock}>
+                <div className={styles.primaryResultHeader}>
+                  <span className={styles.primaryResultLabel}>Required Connection Speed</span>
+                  <span
+                    className={`${styles.badge} ${
+                      modeCResult.data.isFeasible ? styles.badgeSuccess : styles.badgeHighlight
+                    }`}
+                  >
+                    {modeCResult.data.isFeasible ? 'Achievable Plan' : 'Server Cap Limited'}
+                  </span>
+                </div>
+                <div className={styles.primaryResultValue}>
+                  {modeCResult.data.requiredNominalConnectionFormatted}
+                </div>
+                <div className={styles.primaryResultCaption}>
+                  Required effective throughput: <strong>{modeCResult.data.requiredEffectiveFormatted}</strong>
+                </div>
+              </div>
+
+              <div className={styles.metricGrid}>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Bandwidth Allocation</span>
+                  <span className={styles.metricBoxValue}>
+                    {bandwidthShare}%
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricBoxLabel}>Target Time Window</span>
+                  <span className={styles.metricBoxValue}>
+                    {numericTargetDuration} {targetDurationUnit}
+                  </span>
+                </div>
+                {modeCResult.data.serverCapEnabled && (
+                  <div className={styles.metricBox}>
+                    <span className={styles.metricBoxLabel}>Server Cap Ceiling</span>
+                    <span className={styles.metricBoxValue}>
+                      {modeCResult.data.maxFeasibleEffectiveMBs?.toFixed(1)} MB/s eff
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={`${styles.decisionNote} ${
+                  !modeCResult.data.isFeasible ? styles.warningNote : ''
+                }`}
+              >
+                {modeCResult.data.decisionNote}
+              </div>
+            </>
+          ) : (
+            <div className={`${styles.decisionNote} ${styles.warningNote}`}>
+              {modeCResult.error}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions Row */}
+      <div className={styles.actionsRow}>
+        <button type="button" className={`${styles.actionButton} ${styles.resetButton}`} onClick={handleReset}>
+          Reset Defaults
+        </button>
+        <button type="button" className={styles.actionButton} onClick={handleCopyLink}>
+          {copyFeedback || 'Share Download Link'}
+        </button>
       </div>
     </div>
   );

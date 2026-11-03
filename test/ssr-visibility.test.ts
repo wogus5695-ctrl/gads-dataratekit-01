@@ -17,9 +17,10 @@ describe('Core Utilities SSR / Initial HTML Visibility', () => {
 
     // Must contain H1, inputs and default calculation results
     assert.ok(html.includes('Download Time Calculator'), 'H1 title must be present');
-    assert.ok(html.includes('Download Time'), 'Primary result label must be present');
-    assert.ok(html.includes('2 hours 13 minutes 20 seconds'), 'Default 100 GB @ 100 Mbps result must be present in initial HTML');
-    assert.ok(html.includes('12.5 MB/s'), 'Equivalent MB/s rate must be present in initial HTML');
+    assert.ok(html.includes('Estimated Download Time'), 'Primary result label must be present');
+    assert.ok(html.includes('2 hours 28 minutes 9 seconds'), 'Default 100 GB @ 100 Mbps (90% planning) result must be present in initial HTML');
+    assert.ok(html.includes('2 hours 13 minutes 20 seconds'), 'Theoretical line-rate duration must be present in initial HTML');
+    assert.ok(html.includes('11.25 MB/s'), 'Effective MB/s rate must be present in initial HTML');
   });
 
   it('Upload Calculator (/upload-time-calculator) initial HTML renders inputs and default results', () => {
