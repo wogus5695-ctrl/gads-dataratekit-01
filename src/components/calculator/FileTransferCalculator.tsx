@@ -1,26 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  CalculationMode,
+  FileTransferMode,
   FileSizeUnit,
   SpeedUnit,
-  DECIMAL_FILE_UNITS,
-  BINARY_FILE_UNITS,
-  BIT_SPEED_UNITS,
-  BYTE_SPEED_UNITS,
-  calculateTransferTime,
-  calculateRequiredSpeed,
-  calculateTransferableSize,
-  convertSpeed,
-  parseCalculatorState,
-  serializeCalculatorState,
-  validatePositiveNumber,
-} from '@/lib/transfer';
-import styles from './DownloadCalculator.module.css';
+  TimeUnit,
+  calculateFileTransferTime,
+  calculateBottleneckAnalysis,
+  calculateRequiredInterfaceSpeed,
+  parseFileTransferUrlState,
+  serializeFileTransferUrlState,
+  DEFAULT_FILE_TRANSFER_STATE,
+} from '@/lib/file-transfer';
+import styles from './FileTransferCalculator.module.css';
 
-type TimeUnit = 'seconds' | 'minutes' | 'hours' | 'days';
+const DECIMAL_FILE_UNITS: FileSizeUnit[] = ['KB', 'MB', 'GB', 'TB'];
+const BINARY_FILE_UNITS: FileSizeUnit[] = ['KiB', 'MiB', 'GiB', 'TiB'];
+const BIT_SPEED_UNITS: SpeedUnit[] = ['Kbps', 'Mbps', 'Gbps'];
+const BYTE_SPEED_UNITS: SpeedUnit[] = ['KB/s', 'MB/s', 'GB/s'];
 
 const TIME_UNIT_MULTIPLIERS: Record<TimeUnit, number> = {
   seconds: 1,
@@ -29,24 +28,44 @@ const TIME_UNIT_MULTIPLIERS: Record<TimeUnit, number> = {
   days: 86400,
 };
 
-const EFFICIENCY_PRESETS = [100, 95, 90, 85, 80] as const;
+const EFFICIENCY_PRESETS = [100, 95, 90, 85, 80, 70] as const;
 
-interface InterfacePreset {
+interface DevicePreset {
   name: string;
   speed: string;
   unit: SpeedUnit;
 }
 
-const COMMON_INTERFACE_PRESETS: InterfacePreset[] = [
-  { name: 'Gigabit Ethernet', speed: '1', unit: 'Gbps' },
-  { name: '2.5 Gigabit Ethernet', speed: '2.5', unit: 'Gbps' },
-  { name: '10 Gigabit Ethernet', speed: '10', unit: 'Gbps' },
-  { name: 'USB 2.0', speed: '480', unit: 'Mbps' },
-  { name: 'USB 5Gbps', speed: '5', unit: 'Gbps' },
-  { name: 'USB 10Gbps', speed: '10', unit: 'Gbps' },
-  { name: 'USB 20Gbps', speed: '20', unit: 'Gbps' },
-  { name: 'Thunderbolt 4', speed: '40', unit: 'Gbps' },
-  { name: 'Thunderbolt 5', speed: '80', unit: 'Gbps' },
+const SOURCE_STORAGE_PRESETS: DevicePreset[] = [
+  { name: 'NVMe SSD PCIe 4.0 (Typical ~7,000 MB/s)', speed: '7000', unit: 'MB/s' },
+  { name: 'NVMe SSD PCIe 3.0 (Typical ~3,500 MB/s)', speed: '3500', unit: 'MB/s' },
+  { name: 'SATA III SSD (Typical ~500 MB/s)', speed: '500', unit: 'MB/s' },
+  { name: 'Fast 7200 RPM HDD (Typical ~200 MB/s)', speed: '200', unit: 'MB/s' },
+  { name: 'External USB 3.0 HDD (Typical ~120 MB/s)', speed: '120', unit: 'MB/s' },
+  { name: 'SD Card UHS-II (Typical ~250 MB/s)', speed: '250', unit: 'MB/s' },
+  { name: 'SD Card UHS-I (Typical ~90 MB/s)', speed: '90', unit: 'MB/s' },
+];
+
+const INTERFACE_PRESETS: DevicePreset[] = [
+  { name: '10GbE Network (10 Gbps nominal ceiling)', speed: '10', unit: 'Gbps' },
+  { name: '2.5GbE Network (2.5 Gbps nominal ceiling)', speed: '2.5', unit: 'Gbps' },
+  { name: 'Gigabit Ethernet (1 Gbps nominal ceiling)', speed: '1', unit: 'Gbps' },
+  { name: 'Wi-Fi 6 (80MHz MIMO ~1.2 Gbps link ceiling)', speed: '1.2', unit: 'Gbps' },
+  { name: 'Thunderbolt 4 / 3 (40 Gbps bus ceiling)', speed: '40', unit: 'Gbps' },
+  { name: 'USB 3.2 Gen 2 (10 Gbps bus ceiling)', speed: '10', unit: 'Gbps' },
+  { name: 'USB 3.0 / 3.2 Gen 1 (5 Gbps bus ceiling)', speed: '5', unit: 'Gbps' },
+  { name: 'USB 2.0 (480 Mbps bus ceiling)', speed: '480', unit: 'Mbps' },
+];
+
+const DESTINATION_STORAGE_PRESETS: DevicePreset[] = [
+  { name: 'NVMe SSD PCIe 4.0 (Typical ~5,000 MB/s)', speed: '5000', unit: 'MB/s' },
+  { name: 'NVMe SSD PCIe 3.0 (Typical ~3,000 MB/s)', speed: '3000', unit: 'MB/s' },
+  { name: 'SATA III SSD (Typical ~500 MB/s)', speed: '500', unit: 'MB/s' },
+  { name: 'NAS RAID 5 (4x HDD example ~350 MB/s)', speed: '350', unit: 'MB/s' },
+  { name: 'Fast 7200 RPM HDD (Typical ~180 MB/s)', speed: '180', unit: 'MB/s' },
+  { name: '5400 RPM Backup HDD (Typical ~100 MB/s)', speed: '100', unit: 'MB/s' },
+  { name: 'External USB HDD (Typical ~110 MB/s)', speed: '110', unit: 'MB/s' },
+  { name: 'MicroSD Card V30 (Min sustained 30 MB/s)', speed: '30', unit: 'MB/s' },
 ];
 
 function FileTransferUrlSync({
@@ -63,23 +82,57 @@ function FileTransferUrlSync({
 
 export function FileTransferCalculator() {
   // Mode state
-  const [mode, setMode] = useState<CalculationMode>('find-time');
+  const [mode, setMode] = useState<FileTransferMode>(DEFAULT_FILE_TRANSFER_STATE.mode);
 
-  // Input states (File Transfer default: 100 GB, 100 MB/s, 10 minutes)
-  const [sizeInput, setSizeInput] = useState<string>('100');
-  const [sizeUnit, setSizeUnit] = useState<FileSizeUnit>('GB');
+  // Path speed inputs
+  const [sourceSpeedInput, setSourceSpeedInput] = useState<string>(
+    DEFAULT_FILE_TRANSFER_STATE.sourceSpeed.toString()
+  );
+  const [sourceSpeedUnit, setSourceSpeedUnit] = useState<SpeedUnit>(
+    DEFAULT_FILE_TRANSFER_STATE.sourceSpeedUnit
+  );
 
-  const [speedInput, setSpeedInput] = useState<string>('100');
-  const [speedUnit, setSpeedUnit] = useState<SpeedUnit>('MB/s');
+  const [interfaceSpeedInput, setInterfaceSpeedInput] = useState<string>(
+    DEFAULT_FILE_TRANSFER_STATE.interfaceSpeed.toString()
+  );
+  const [interfaceSpeedUnit, setInterfaceSpeedUnit] = useState<SpeedUnit>(
+    DEFAULT_FILE_TRANSFER_STATE.interfaceSpeedUnit
+  );
 
-  const [timeInput, setTimeInput] = useState<string>('10');
-  const [timeUnit, setTimeUnit] = useState<TimeUnit>('minutes');
+  const [destSpeedInput, setDestSpeedInput] = useState<string>(
+    DEFAULT_FILE_TRANSFER_STATE.destSpeed.toString()
+  );
+  const [destSpeedUnit, setDestSpeedUnit] = useState<SpeedUnit>(
+    DEFAULT_FILE_TRANSFER_STATE.destSpeedUnit
+  );
 
-  const [targetSpeedUnit, setTargetSpeedUnit] = useState<SpeedUnit>('MB/s');
-  const [targetSizeUnit, setTargetSizeUnit] = useState<FileSizeUnit>('GB');
+  // Data & Planning inputs
+  const [dataSizeInput, setDataSizeInput] = useState<string>(
+    DEFAULT_FILE_TRANSFER_STATE.dataSize.toString()
+  );
+  const [dataSizeUnit, setDataSizeUnit] = useState<FileSizeUnit>(
+    DEFAULT_FILE_TRANSFER_STATE.dataSizeUnit
+  );
 
-  // Efficiency / Throughput adjustment (default: 100% for file transfer)
-  const [efficiency, setEfficiency] = useState<number>(100);
+  const [efficiency, setEfficiency] = useState<number>(DEFAULT_FILE_TRANSFER_STATE.efficiency);
+
+  // Optional batch / small-file overhead
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [fileCountInput, setFileCountInput] = useState<string>(
+    DEFAULT_FILE_TRANSFER_STATE.fileCount.toString()
+  );
+  const [overheadInput, setOverheadInput] = useState<string>(
+    DEFAULT_FILE_TRANSFER_STATE.overhead.toString()
+  );
+
+  // Mode C target window inputs
+  const [targetDurationInput, setTargetDurationInput] = useState<string>(
+    DEFAULT_FILE_TRANSFER_STATE.targetDuration.toString()
+  );
+  const [targetDurationUnit, setTargetDurationUnit] = useState<TimeUnit>(
+    DEFAULT_FILE_TRANSFER_STATE.targetDurationUnit
+  );
+  const [targetSpeedUnit, setTargetSpeedUnit] = useState<SpeedUnit>('Gbps');
 
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
@@ -87,792 +140,862 @@ export function FileTransferCalculator() {
   const handleUrlSync = useCallback((params: ReturnType<typeof useSearchParams>) => {
     if (!params || Array.from(params.keys()).length === 0) return;
 
-    const parsed = parseCalculatorState(params);
+    const parsed = parseFileTransferUrlState(params);
     setMode(parsed.mode);
-    setSizeInput(parsed.fileSize.toString());
-    setSizeUnit(parsed.fileSizeUnit);
-    setSpeedInput(parsed.speed.toString());
-    setSpeedUnit(parsed.speedUnit);
+    setDataSizeInput(parsed.dataSize.toString());
+    setDataSizeUnit(parsed.dataSizeUnit);
+    setSourceSpeedInput(parsed.sourceSpeed.toString());
+    setSourceSpeedUnit(parsed.sourceSpeedUnit);
+    setInterfaceSpeedInput(parsed.interfaceSpeed.toString());
+    setInterfaceSpeedUnit(parsed.interfaceSpeedUnit);
+    setDestSpeedInput(parsed.destSpeed.toString());
+    setDestSpeedUnit(parsed.destSpeedUnit);
+    setEfficiency(parsed.efficiency);
+    setFileCountInput(parsed.fileCount.toString());
+    setOverheadInput(parsed.overhead.toString());
+    setTargetDurationInput(parsed.targetDuration.toString());
+    setTargetDurationUnit(parsed.targetDurationUnit);
 
-    // If efficiency was explicitly in searchParams, respect it, otherwise default to 100
-    if (params.has('efficiency')) {
-      setEfficiency(parsed.efficiencyPercent);
-    } else {
-      setEfficiency(100);
-    }
-
-    if (params.has('time')) {
-      const sec = parsed.durationSeconds;
-      if (sec >= 86400 && sec % 86400 === 0) {
-        setTimeInput((sec / 86400).toString());
-        setTimeUnit('days');
-      } else if (sec >= 3600 && sec % 3600 === 0) {
-        setTimeInput((sec / 3600).toString());
-        setTimeUnit('hours');
-      } else if (sec >= 60 && sec % 60 === 0) {
-        setTimeInput((sec / 60).toString());
-        setTimeUnit('minutes');
-      } else {
-        setTimeInput(sec.toString());
-        setTimeUnit('seconds');
-      }
+    if (parsed.fileCount > 1 || parsed.overhead > 0) {
+      setShowAdvanced(true);
     }
   }, []);
 
-  // Validations
-  const sizeValidation = useMemo(
-    () => validatePositiveNumber(sizeInput, 'File size'),
-    [sizeInput]
-  );
-  const speedValidation = useMemo(
-    () => validatePositiveNumber(speedInput, 'Transfer speed'),
-    [speedInput]
-  );
-  const timeValidation = useMemo(
-    () => validatePositiveNumber(timeInput, 'Time'),
-    [timeInput]
-  );
+  // Parse numeric values safely
+  const numericDataSize = parseFloat(dataSizeInput);
+  const numericSourceSpeed = parseFloat(sourceSpeedInput);
+  const numericInterfaceSpeed = parseFloat(interfaceSpeedInput);
+  const numericDestSpeed = parseFloat(destSpeedInput);
+  const numericFiles = Math.max(1, parseInt(fileCountInput, 10) || 1);
+  const numericOverhead = Math.max(0, parseFloat(overheadInput) || 0);
 
-  // Mode 1: Find Time Calculation
-  const timeCalculation = useMemo(() => {
-    if (!sizeValidation.isValid || !speedValidation.isValid) {
-      return null;
-    }
+  const numericTargetDuration = parseFloat(targetDurationInput);
+  const targetDurationSeconds =
+    Number.isFinite(numericTargetDuration) && numericTargetDuration > 0
+      ? numericTargetDuration * TIME_UNIT_MULTIPLIERS[targetDurationUnit]
+      : 0;
 
-    // Theoretical / direct at 100% (PRIMARY)
-    const theoretical = calculateTransferTime({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      speed: speedValidation.value,
-      speedUnit,
-      efficiencyPercent: 100,
+  // Mode A: Transfer Time
+  const modeAResult = useMemo(() => {
+    if (mode !== 'transfer-time') return null;
+    return calculateFileTransferTime({
+      dataSize: numericDataSize,
+      dataSizeUnit,
+      sourceSpeed: numericSourceSpeed,
+      sourceSpeedUnit,
+      interfaceSpeed: numericInterfaceSpeed,
+      interfaceSpeedUnit,
+      destinationSpeed: numericDestSpeed,
+      destinationSpeedUnit: destSpeedUnit,
+      planningEfficiencyPercent: efficiency,
+      fileCount: numericFiles,
+      perFileOverheadSeconds: numericOverhead,
     });
-
-    // Adjusted estimate at chosen percentage (SECONDARY)
-    const estimated = calculateTransferTime({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      speed: speedValidation.value,
-      speedUnit,
-      efficiencyPercent: efficiency,
-    });
-
-    // Equivalent rate conversion
-    // If entered speed is in Bytes (MB/s, etc.), convert to bits (Mbps)
-    // If entered speed is in Bits (Mbps, etc.), convert to bytes (MB/s)
-    const isByteUnit = (BYTE_SPEED_UNITS as readonly string[]).includes(speedUnit);
-    const targetEquivUnit: SpeedUnit = isByteUnit ? 'Mbps' : 'MB/s';
-    const equivalentRate = convertSpeed(speedValidation.value, speedUnit, targetEquivUnit);
-
-    // Data per hour at entered sustained speed (100%): 3600 seconds
-    const dataPerHour = calculateTransferableSize({
-      speed: speedValidation.value,
-      speedUnit,
-      durationSeconds: 3600,
-      targetSizeUnit: sizeUnit,
-      efficiencyPercent: 100,
-    });
-
-    return {
-      theoretical,
-      estimated,
-      equivalentRate,
-      dataPerHour,
-    };
-  }, [sizeValidation, speedValidation, sizeUnit, speedUnit, efficiency]);
-
-  // Mode 2: Find Required Transfer Speed Calculation
-  const requiredSpeedCalculation = useMemo(() => {
-    if (!sizeValidation.isValid || !timeValidation.isValid) {
-      return null;
-    }
-
-    const totalSeconds = timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit];
-
-    const theoretical = calculateRequiredSpeed({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      durationSeconds: totalSeconds,
-      targetSpeedUnit,
-      efficiencyPercent: 100,
-    });
-
-    const estimated = calculateRequiredSpeed({
-      fileSize: sizeValidation.value,
-      fileSizeUnit: sizeUnit,
-      durationSeconds: totalSeconds,
-      targetSpeedUnit,
-      efficiencyPercent: efficiency,
-    });
-
-    return { theoretical, estimated, totalSeconds };
-  }, [sizeValidation, timeValidation, sizeUnit, timeUnit, targetSpeedUnit, efficiency]);
-
-  // Mode 3: Find Transferable File Size Calculation
-  const transferableSizeCalculation = useMemo(() => {
-    if (!speedValidation.isValid || !timeValidation.isValid) {
-      return null;
-    }
-
-    const totalSeconds = timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit];
-
-    const theoretical = calculateTransferableSize({
-      speed: speedValidation.value,
-      speedUnit,
-      durationSeconds: totalSeconds,
-      targetSizeUnit,
-      efficiencyPercent: 100,
-    });
-
-    const estimated = calculateTransferableSize({
-      speed: speedValidation.value,
-      speedUnit,
-      durationSeconds: totalSeconds,
-      targetSizeUnit,
-      efficiencyPercent: efficiency,
-    });
-
-    return { theoretical, estimated, totalSeconds };
-  }, [speedValidation, timeValidation, speedUnit, timeUnit, targetSizeUnit, efficiency]);
-
-  // Reset to default File Transfer state
-  const handleReset = useCallback(() => {
-    setMode('find-time');
-    setSizeInput('100');
-    setSizeUnit('GB');
-    setSpeedInput('100');
-    setSpeedUnit('MB/s');
-    setTimeInput('10');
-    setTimeUnit('minutes');
-    setTargetSpeedUnit('MB/s');
-    setTargetSizeUnit('GB');
-    setEfficiency(100);
-    setCopyFeedback(null);
-  }, []);
-
-  // Copy shareable link for File Transfer tool
-  const handleCopyLink = useCallback(async () => {
-    if (typeof window === 'undefined') return;
-
-    const totalSeconds = timeValidation.isValid
-      ? timeValidation.value * TIME_UNIT_MULTIPLIERS[timeUnit]
-      : 600;
-
-    const query = serializeCalculatorState({
-      mode,
-      fileSize: sizeValidation.isValid ? sizeValidation.value : 100,
-      fileSizeUnit: sizeUnit,
-      speed: speedValidation.isValid ? speedValidation.value : 100,
-      speedUnit,
-      durationSeconds: totalSeconds,
-      efficiencyPercent: efficiency,
-    });
-
-    const shareUrl = `${window.location.origin}${window.location.pathname}?${query}`;
-
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-        setCopyFeedback('Link copied!');
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = shareUrl;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        setCopyFeedback('Link copied!');
-      }
-    } catch {
-      setCopyFeedback('Unable to copy');
-    }
-
-    setTimeout(() => {
-      setCopyFeedback(null);
-    }, 2500);
   }, [
     mode,
-    sizeValidation,
-    sizeUnit,
-    speedValidation,
-    speedUnit,
-    timeValidation,
-    timeUnit,
+    numericDataSize,
+    dataSizeUnit,
+    numericSourceSpeed,
+    sourceSpeedUnit,
+    numericInterfaceSpeed,
+    interfaceSpeedUnit,
+    numericDestSpeed,
+    destSpeedUnit,
+    efficiency,
+    numericFiles,
+    numericOverhead,
+  ]);
+
+  // Mode B: Bottleneck Analysis
+  const modeBResult = useMemo(() => {
+    if (mode !== 'bottleneck') return null;
+    return calculateBottleneckAnalysis({
+      sourceSpeed: numericSourceSpeed,
+      sourceSpeedUnit,
+      interfaceSpeed: numericInterfaceSpeed,
+      interfaceSpeedUnit,
+      destinationSpeed: numericDestSpeed,
+      destinationSpeedUnit: destSpeedUnit,
+      planningEfficiencyPercent: efficiency,
+    });
+  }, [
+    mode,
+    numericSourceSpeed,
+    sourceSpeedUnit,
+    numericInterfaceSpeed,
+    interfaceSpeedUnit,
+    numericDestSpeed,
+    destSpeedUnit,
     efficiency,
   ]);
 
-  const handleApplyPreset = (preset: InterfacePreset) => {
-    setSpeedInput(preset.speed);
-    setSpeedUnit(preset.unit);
-  };
+  // Mode C: Required Interface Speed
+  const modeCResult = useMemo(() => {
+    if (mode !== 'required-interface') return null;
+    return calculateRequiredInterfaceSpeed({
+      dataSize: numericDataSize,
+      dataSizeUnit,
+      targetDurationSeconds,
+      sourceSpeed: numericSourceSpeed,
+      sourceSpeedUnit,
+      destinationSpeed: numericDestSpeed,
+      destinationSpeedUnit: destSpeedUnit,
+      targetSpeedUnit,
+      planningEfficiencyPercent: efficiency,
+      fileCount: numericFiles,
+      perFileOverheadSeconds: numericOverhead,
+    });
+  }, [
+    mode,
+    numericDataSize,
+    dataSizeUnit,
+    targetDurationSeconds,
+    numericSourceSpeed,
+    sourceSpeedUnit,
+    numericDestSpeed,
+    destSpeedUnit,
+    targetSpeedUnit,
+    efficiency,
+    numericFiles,
+    numericOverhead,
+  ]);
+
+  // Active bottleneck detection across modes
+  const activeBottleneck = useMemo<'source' | 'interface' | 'destination' | 'tie' | null>(() => {
+    if (modeAResult?.success) return modeAResult.data.bottleneckStage;
+    if (modeBResult?.success) return modeBResult.data.bottleneckStage;
+    if (modeCResult?.success) {
+      if (!modeCResult.data.isFeasible) {
+        return modeCResult.data.storageCeilingStage === 'source' ? 'source' : 'destination';
+      }
+      return 'interface';
+    }
+    return null;
+  }, [modeAResult, modeBResult, modeCResult]);
+
+  // Copy shareable link
+  const handleCopyLink = useCallback(() => {
+    const currentState = {
+      mode,
+      dataSize: Number.isFinite(numericDataSize) && numericDataSize > 0 ? numericDataSize : DEFAULT_FILE_TRANSFER_STATE.dataSize,
+      dataSizeUnit,
+      sourceSpeed: Number.isFinite(numericSourceSpeed) && numericSourceSpeed > 0 ? numericSourceSpeed : DEFAULT_FILE_TRANSFER_STATE.sourceSpeed,
+      sourceSpeedUnit,
+      interfaceSpeed: Number.isFinite(numericInterfaceSpeed) && numericInterfaceSpeed > 0 ? numericInterfaceSpeed : DEFAULT_FILE_TRANSFER_STATE.interfaceSpeed,
+      interfaceSpeedUnit,
+      destSpeed: Number.isFinite(numericDestSpeed) && numericDestSpeed > 0 ? numericDestSpeed : DEFAULT_FILE_TRANSFER_STATE.destSpeed,
+      destSpeedUnit,
+      efficiency,
+      fileCount: numericFiles,
+      overhead: numericOverhead,
+      targetDuration: Number.isFinite(numericTargetDuration) && numericTargetDuration > 0 ? numericTargetDuration : DEFAULT_FILE_TRANSFER_STATE.targetDuration,
+      targetDurationUnit,
+    };
+
+    const qs = serializeFileTransferUrlState(currentState);
+    const url = `${window.location.origin}${window.location.pathname}${qs}`;
+
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopyFeedback('Link copied!');
+        setTimeout(() => setCopyFeedback(null), 2500);
+      })
+      .catch(() => {
+        setCopyFeedback('Failed to copy');
+        setTimeout(() => setCopyFeedback(null), 2500);
+      });
+  }, [
+    mode,
+    numericDataSize,
+    dataSizeUnit,
+    numericSourceSpeed,
+    sourceSpeedUnit,
+    numericInterfaceSpeed,
+    interfaceSpeedUnit,
+    numericDestSpeed,
+    destSpeedUnit,
+    efficiency,
+    numericFiles,
+    numericOverhead,
+    numericTargetDuration,
+    targetDurationUnit,
+  ]);
+
+  const handleReset = useCallback(() => {
+    setMode(DEFAULT_FILE_TRANSFER_STATE.mode);
+    setDataSizeInput(DEFAULT_FILE_TRANSFER_STATE.dataSize.toString());
+    setDataSizeUnit(DEFAULT_FILE_TRANSFER_STATE.dataSizeUnit);
+    setSourceSpeedInput(DEFAULT_FILE_TRANSFER_STATE.sourceSpeed.toString());
+    setSourceSpeedUnit(DEFAULT_FILE_TRANSFER_STATE.sourceSpeedUnit);
+    setInterfaceSpeedInput(DEFAULT_FILE_TRANSFER_STATE.interfaceSpeed.toString());
+    setInterfaceSpeedUnit(DEFAULT_FILE_TRANSFER_STATE.interfaceSpeedUnit);
+    setDestSpeedInput(DEFAULT_FILE_TRANSFER_STATE.destSpeed.toString());
+    setDestSpeedUnit(DEFAULT_FILE_TRANSFER_STATE.destSpeedUnit);
+    setEfficiency(DEFAULT_FILE_TRANSFER_STATE.efficiency);
+    setFileCountInput(DEFAULT_FILE_TRANSFER_STATE.fileCount.toString());
+    setOverheadInput(DEFAULT_FILE_TRANSFER_STATE.overhead.toString());
+    setTargetDurationInput(DEFAULT_FILE_TRANSFER_STATE.targetDuration.toString());
+    setTargetDurationUnit(DEFAULT_FILE_TRANSFER_STATE.targetDurationUnit);
+    setShowAdvanced(false);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
 
   return (
-    <div className={styles.calculatorContainer} aria-label="File Transfer Time Calculator Tool">
-      <React.Suspense fallback={null}>
+    <div className={styles.calculatorCard}>
+      <Suspense fallback={null}>
         <FileTransferUrlSync onSync={handleUrlSync} />
-      </React.Suspense>
-      {/* Mode Switcher / Segmented Control */}
+      </Suspense>
+
+      {/* Mode Selector */}
       <div className={styles.modeSelectorRow}>
-        <span className={styles.modeSelectorLabel} id="mode-selector-label">
-          Calculate
-        </span>
-        <div
-          className={styles.tabList}
-          role="tablist"
-          aria-labelledby="mode-selector-label"
-        >
+        <span className={styles.modeLabel}>Calculation Mode</span>
+        <div className={styles.segmentedControl} role="tablist" aria-label="Calculation Mode">
           <button
             type="button"
             role="tab"
-            aria-selected={mode === 'find-time'}
-            className={`${styles.tabButton} ${
-              mode === 'find-time' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-time')}
+            aria-selected={mode === 'transfer-time'}
+            className={`${styles.segmentBtn} ${mode === 'transfer-time' ? styles.segmentBtnActive : ''}`}
+            onClick={() => setMode('transfer-time')}
           >
-            Time
+            Transfer Time
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={mode === 'find-speed'}
-            className={`${styles.tabButton} ${
-              mode === 'find-speed' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-speed')}
+            aria-selected={mode === 'bottleneck'}
+            className={`${styles.segmentBtn} ${mode === 'bottleneck' ? styles.segmentBtnActive : ''}`}
+            onClick={() => setMode('bottleneck')}
           >
-            Required speed
+            Bottleneck Analysis
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={mode === 'find-size'}
-            className={`${styles.tabButton} ${
-              mode === 'find-size' ? styles.tabButtonActive : ''
-            }`}
-            onClick={() => setMode('find-size')}
+            aria-selected={mode === 'required-interface'}
+            className={`${styles.segmentBtn} ${mode === 'required-interface' ? styles.segmentBtnActive : ''}`}
+            onClick={() => setMode('required-interface')}
           >
-            File size
+            Required Interface Speed
           </button>
         </div>
       </div>
 
-      {/* Main Input Form */}
-      <form onSubmit={(e) => e.preventDefault()} noValidate>
-        <div className={`${styles.formGrid} ${styles.formGridTwoCol}`}>
-          {/* File Size Field (Modes 1 and 2) */}
-          {mode !== 'find-size' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="file-size-input" className={styles.label}>
-                <span>File Size</span>
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !sizeValidation.isValid ? styles.inputRowError : ''
-                }`}
-              >
-                <input
-                  id="file-size-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={sizeInput}
-                  onChange={(e) => setSizeInput(e.target.value)}
-                  placeholder="e.g. 100"
-                  aria-invalid={!sizeValidation.isValid}
-                  aria-describedby={!sizeValidation.isValid ? 'size-error' : undefined}
-                  className={styles.numberInput}
-                />
-                <select
-                  value={sizeUnit}
-                  onChange={(e) => setSizeUnit(e.target.value as FileSizeUnit)}
-                  aria-label="File size unit"
-                  className={styles.unitSelect}
-                >
-                  <optgroup label="Standard (Decimal)">
-                    {DECIMAL_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Binary (IEC)">
-                    {BINARY_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              {!sizeValidation.isValid && (
-                <span id="size-error" className={styles.errorMessage} role="alert">
-                  {sizeValidation.error}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Transfer Speed Field (Modes 1 and 3) */}
-          {mode !== 'find-speed' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="transfer-speed-input" className={styles.label}>
-                <span>Transfer Speed</span>
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !speedValidation.isValid ? styles.inputRowError : ''
-                }`}
-              >
-                <input
-                  id="transfer-speed-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={speedInput}
-                  onChange={(e) => setSpeedInput(e.target.value)}
-                  placeholder="e.g. 100"
-                  aria-invalid={!speedValidation.isValid}
-                  aria-describedby={
-                    !speedValidation.isValid
-                      ? 'speed-error'
-                      : 'speed-helper'
-                  }
-                  className={styles.numberInput}
-                />
-                <select
-                  value={speedUnit}
-                  onChange={(e) => setSpeedUnit(e.target.value as SpeedUnit)}
-                  aria-label="Transfer speed unit"
-                  className={styles.unitSelect}
-                >
-                  <optgroup label="Bytes">
-                    {BYTE_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Bits">
-                    {BIT_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              {!speedValidation.isValid ? (
-                <span id="speed-error" className={styles.errorMessage} role="alert">
-                  {speedValidation.error}
-                </span>
-              ) : (
-                <span id="speed-helper" className={styles.helperText}>
-                  Use the sustained copy speed you actually see during a transfer. If one device or link is slower, use that slower rate.
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Time Duration Field (Modes 2 and 3) */}
-          {mode !== 'find-time' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="time-duration-input" className={styles.label}>
-                <span>{mode === 'find-speed' ? 'Desired Transfer Time' : 'Available Time'}</span>
-              </label>
-              <div
-                className={`${styles.inputRow} ${
-                  !timeValidation.isValid ? styles.inputRowError : ''
-                }`}
-              >
-                <input
-                  id="time-duration-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={timeInput}
-                  onChange={(e) => setTimeInput(e.target.value)}
-                  placeholder="e.g. 10"
-                  aria-invalid={!timeValidation.isValid}
-                  aria-describedby={!timeValidation.isValid ? 'time-error' : undefined}
-                  className={styles.numberInput}
-                />
-                <select
-                  value={timeUnit}
-                  onChange={(e) => setTimeUnit(e.target.value as TimeUnit)}
-                  aria-label="Time duration unit"
-                  className={styles.unitSelect}
-                >
-                  <option value="seconds">seconds</option>
-                  <option value="minutes">minutes</option>
-                  <option value="hours">hours</option>
-                  <option value="days">days</option>
-                </select>
-              </div>
-              {!timeValidation.isValid && (
-                <span id="time-error" className={styles.errorMessage} role="alert">
-                  {timeValidation.error}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Target Speed Unit (Mode 2 only) */}
-          {mode === 'find-speed' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="target-speed-unit" className={styles.label}>
-                Result Speed Unit
-              </label>
-              <div className={styles.inputRow}>
-                <select
-                  id="target-speed-unit"
-                  value={targetSpeedUnit}
-                  onChange={(e) => setTargetSpeedUnit(e.target.value as SpeedUnit)}
-                  className={styles.unitSelect}
-                  style={{ width: '100%', borderLeft: 'none' }}
-                >
-                  <optgroup label="Bytes">
-                    {BYTE_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Bits">
-                    {BIT_SPEED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Target Size Unit (Mode 3 only) */}
-          {mode === 'find-size' && (
-            <div className={styles.fieldGroup}>
-              <label htmlFor="target-size-unit" className={styles.label}>
-                Result Size Unit
-              </label>
-              <div className={styles.inputRow}>
-                <select
-                  id="target-size-unit"
-                  value={targetSizeUnit}
-                  onChange={(e) => setTargetSizeUnit(e.target.value as FileSizeUnit)}
-                  className={styles.unitSelect}
-                  style={{ width: '100%', borderLeft: 'none' }}
-                >
-                  <optgroup label="Standard (Decimal)">
-                    {DECIMAL_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Binary (IEC)">
-                    {BINARY_FILE_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-          )}
+      {/* 3-Stage Pipeline Grid (Source -> Interface -> Destination) */}
+      <div className={styles.pipelineSection}>
+        <div className={styles.pipelineHeader}>
+          <span className={styles.pipelineTitle}>
+            Transfer Path Pipeline
+            <span className={styles.pipelineBadge}>3-Stage End-to-End</span>
+          </span>
+          <span className={styles.fieldHint}>
+            Throughput is capped by the slowest stage
+          </span>
         </div>
 
-        {/* Optional Common Interface Presets Disclosure (Mode 1 and 3) */}
-        {mode !== 'find-speed' && (
-          <details className={styles.estimateDisclosure}>
-            <summary className={styles.estimateSummary}>
-              Common interface rates
-              <span className={styles.disclosureIndicator} aria-hidden="true">
-                ▾
-              </span>
-            </summary>
-            <div className={styles.estimateBody}>
-              <div
-                className={styles.throughputPills}
-                role="group"
-                aria-label="Common interface presets"
-              >
-                {COMMON_INTERFACE_PRESETS.map((preset) => (
-                  <button
-                    key={preset.name}
-                    type="button"
-                    className={styles.pillButton}
-                    onClick={() => handleApplyPreset(preset)}
-                  >
-                    <span>{preset.name}</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
-                      ({preset.speed} {preset.unit})
-                    </span>
-                  </button>
-                ))}
+        <div className={styles.pipelineGrid}>
+          {/* Stage 1: Source Storage */}
+          <div
+            className={`${styles.stageCard} ${
+              activeBottleneck === 'source' || activeBottleneck === 'tie'
+                ? styles.stageCardBottleneck
+                : ''
+            }`}
+          >
+            <div className={styles.stageHeader}>
+              <div className={styles.stageTitleGroup}>
+                <span className={styles.stageName}>1. Source Read</span>
+                <span className={styles.stageDesc}>Internal / local drive reading speed</span>
               </div>
-              <p className={styles.throughputHelp}>
-                Interface rates are nominal link limits. Actual file-copy speed may be lower because of the source, destination, protocol, cable, or other bottlenecks.
-              </p>
+              {activeBottleneck === 'source' && (
+                <span className={`${styles.stageTag} ${styles.stageTagBottleneck}`}>
+                  Bottleneck
+                </span>
+              )}
             </div>
-          </details>
+
+            <select
+              className={styles.presetSelect}
+              aria-label="Source storage preset"
+              onChange={(e) => {
+                const preset = SOURCE_STORAGE_PRESETS.find((p) => p.name === e.target.value);
+                if (preset) {
+                  setSourceSpeedInput(preset.speed);
+                  setSourceSpeedUnit(preset.unit);
+                }
+              }}
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Select Example Storage Preset...
+              </option>
+              {SOURCE_STORAGE_PRESETS.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <div className={styles.inputGroup}>
+              <input
+                type="number"
+                min="0.001"
+                step="any"
+                className={styles.inputNumber}
+                value={sourceSpeedInput}
+                onChange={(e) => setSourceSpeedInput(e.target.value)}
+                placeholder="500"
+                aria-label="Source read speed"
+              />
+              <select
+                className={styles.unitSelect}
+                value={sourceSpeedUnit}
+                onChange={(e) => setSourceSpeedUnit(e.target.value as SpeedUnit)}
+                aria-label="Source read speed unit"
+              >
+                <optgroup label="Megabytes & Gigabytes">
+                  {BYTE_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Bits (Mbps / Gbps)">
+                  {BIT_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          {/* Stage 2: Interface / Network */}
+          <div
+            className={`${styles.stageCard} ${
+              activeBottleneck === 'interface' || activeBottleneck === 'tie'
+                ? styles.stageCardBottleneck
+                : ''
+            }`}
+          >
+            <div className={styles.stageHeader}>
+              <div className={styles.stageTitleGroup}>
+                <span className={styles.stageName}>2. Interface / Bus</span>
+                <span className={styles.stageDesc}>LAN, USB, Thunderbolt or bus rate</span>
+              </div>
+              {activeBottleneck === 'interface' && (
+                <span className={`${styles.stageTag} ${styles.stageTagBottleneck}`}>
+                  Bottleneck
+                </span>
+              )}
+            </div>
+
+            {mode === 'required-interface' ? (
+              <div style={{ padding: '0.5rem 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                <em>Calculated automatically based on your deadline window below.</em>
+              </div>
+            ) : (
+              <>
+                <select
+                  className={styles.presetSelect}
+                  aria-label="Interface preset"
+                  onChange={(e) => {
+                    const preset = INTERFACE_PRESETS.find((p) => p.name === e.target.value);
+                    if (preset) {
+                      setInterfaceSpeedInput(preset.speed);
+                      setInterfaceSpeedUnit(preset.unit);
+                    }
+                  }}
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Select Interface / Link Ceiling...
+                  </option>
+                  {INTERFACE_PRESETS.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+
+                <div className={styles.inputGroup}>
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="any"
+                    className={styles.inputNumber}
+                    value={interfaceSpeedInput}
+                    onChange={(e) => setInterfaceSpeedInput(e.target.value)}
+                    placeholder="1"
+                    aria-label="Interface speed"
+                  />
+                  <select
+                    className={styles.unitSelect}
+                    value={interfaceSpeedUnit}
+                    onChange={(e) => setInterfaceSpeedUnit(e.target.value as SpeedUnit)}
+                    aria-label="Interface speed unit"
+                  >
+                    <optgroup label="Bits (Gbps / Mbps)">
+                      {BIT_SPEED_UNITS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Bytes (MB/s / GB/s)">
+                      {BYTE_SPEED_UNITS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Stage 3: Destination Storage */}
+          <div
+            className={`${styles.stageCard} ${
+              activeBottleneck === 'destination' || activeBottleneck === 'tie'
+                ? styles.stageCardBottleneck
+                : ''
+            }`}
+          >
+            <div className={styles.stageHeader}>
+              <div className={styles.stageTitleGroup}>
+                <span className={styles.stageName}>3. Destination Write</span>
+                <span className={styles.stageDesc}>Target drive / NAS write speed</span>
+              </div>
+              {activeBottleneck === 'destination' && (
+                <span className={`${styles.stageTag} ${styles.stageTagBottleneck}`}>
+                  Bottleneck
+                </span>
+              )}
+            </div>
+
+            <select
+              className={styles.presetSelect}
+              aria-label="Destination storage preset"
+              onChange={(e) => {
+                const preset = DESTINATION_STORAGE_PRESETS.find((p) => p.name === e.target.value);
+                if (preset) {
+                  setDestSpeedInput(preset.speed);
+                  setDestSpeedUnit(preset.unit);
+                }
+              }}
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Select Example Storage Preset...
+              </option>
+              {DESTINATION_STORAGE_PRESETS.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <div className={styles.inputGroup}>
+              <input
+                type="number"
+                min="0.001"
+                step="any"
+                className={styles.inputNumber}
+                value={destSpeedInput}
+                onChange={(e) => setDestSpeedInput(e.target.value)}
+                placeholder="300"
+                aria-label="Destination write speed"
+              />
+              <select
+                className={styles.unitSelect}
+                value={destSpeedUnit}
+                onChange={(e) => setDestSpeedUnit(e.target.value as SpeedUnit)}
+                aria-label="Destination write speed unit"
+              >
+                <optgroup label="Megabytes & Gigabytes">
+                  {BYTE_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Bits (Mbps / Gbps)">
+                  {BIT_SPEED_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary Inputs Grid */}
+      <div className={styles.secondaryGrid}>
+        {/* Data Size (Modes A & C) */}
+        {mode !== 'bottleneck' && (
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Total Data Size</label>
+            <div className={styles.inputGroup}>
+              <input
+                type="number"
+                min="0.001"
+                step="any"
+                className={styles.inputNumber}
+                value={dataSizeInput}
+                onChange={(e) => setDataSizeInput(e.target.value)}
+                placeholder="100"
+                aria-label="Data size"
+              />
+              <select
+                className={styles.unitSelect}
+                value={dataSizeUnit}
+                onChange={(e) => setDataSizeUnit(e.target.value as FileSizeUnit)}
+                aria-label="Data size unit"
+              >
+                <optgroup label="Decimal (1000)">
+                  {DECIMAL_FILE_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Binary (1024)">
+                  {BINARY_FILE_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
         )}
 
-        {/* Progressive Disclosure: Estimate Settings / Throughput Adjustment */}
-        <details className={styles.estimateDisclosure}>
-          <summary className={styles.estimateSummary}>
-            Estimate settings · {efficiency}% of entered speed
-            <span className={styles.disclosureIndicator} aria-hidden="true">
-              ▾
-            </span>
-          </summary>
-          <div className={styles.estimateBody}>
-            <div
-              className={styles.throughputPills}
-              role="group"
-              aria-label="Throughput percentage options"
-            >
-              {EFFICIENCY_PRESETS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  aria-pressed={efficiency === p}
-                  className={`${styles.pillButton} ${
-                    efficiency === p ? styles.pillButtonActive : ''
-                  }`}
-                  onClick={() => setEfficiency(p)}
-                >
-                  {p === 100 ? '100% (Direct)' : `${p}%`}
-                </button>
-              ))}
+        {/* Target Deadline (Mode C) */}
+        {mode === 'required-interface' && (
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Target Transfer Deadline</label>
+            <div className={styles.inputGroup}>
+              <input
+                type="number"
+                min="0.1"
+                step="any"
+                className={styles.inputNumber}
+                value={targetDurationInput}
+                onChange={(e) => setTargetDurationInput(e.target.value)}
+                placeholder="15"
+                aria-label="Target duration"
+              />
+              <select
+                className={styles.unitSelect}
+                value={targetDurationUnit}
+                onChange={(e) => setTargetDurationUnit(e.target.value as TimeUnit)}
+                aria-label="Target duration unit"
+              >
+                <option value="seconds">seconds</option>
+                <option value="minutes">minutes</option>
+                <option value="hours">hours</option>
+                <option value="days">days</option>
+              </select>
             </div>
-            <p className={styles.throughputHelp}>
-              Keep this at 100% if you entered a measured sustained copy speed. If you entered a nominal interface rate, you can reduce the percentage for planning.
-            </p>
           </div>
-        </details>
+        )}
 
-        {/* Results Area */}
-        <div className={styles.resultCard} aria-live="polite" aria-atomic="true">
-          {/* MODE 1 RESULTS */}
-          {mode === 'find-time' && (
-            <>
-              {timeCalculation &&
-              timeCalculation.theoretical.success &&
-              timeCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT: 100% of entered transfer speed */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>File Transfer Time</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {timeCalculation.theoretical.data.duration.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At {speedInput} {speedUnit}
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT: Adjusted estimate (only when efficiency !== 100) */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Adjusted estimate · {efficiency}% of entered speed:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {timeCalculation.estimated.data.duration.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Equivalent rate:</span>
-                      <span className={styles.metricVal}>
-                        {timeCalculation.equivalentRate.success
-                          ? timeCalculation.equivalentRate.data.formatted
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Data per hour:</span>
-                      <span className={styles.metricVal}>
-                        {timeCalculation.dataPerHour.success
-                          ? `${timeCalculation.dataPerHour.data.formatted}/hour`
-                          : '—'}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid file size and transfer speed to calculate transfer time.
-                </div>
-              )}
-            </>
-          )}
-
-          {/* MODE 2 RESULTS */}
-          {mode === 'find-speed' && (
-            <>
-              {requiredSpeedCalculation &&
-              requiredSpeedCalculation.theoretical.success &&
-              requiredSpeedCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Required Transfer Speed</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {requiredSpeedCalculation.theoretical.data.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At 100% throughput
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Adjusted estimate · {efficiency}% of entered speed:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {requiredSpeedCalculation.estimated.data.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Target duration:</span>
-                      <span className={styles.metricVal}>
-                        {timeInput} {timeUnit}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>File size:</span>
-                      <span className={styles.metricVal}>
-                        {sizeInput} {sizeUnit}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid file size and desired duration to calculate required transfer speed.
-                </div>
-              )}
-            </>
-          )}
-
-          {/* MODE 3 RESULTS */}
-          {mode === 'find-size' && (
-            <>
-              {transferableSizeCalculation &&
-              transferableSizeCalculation.theoretical.success &&
-              transferableSizeCalculation.estimated.success ? (
-                <>
-                  {/* PRIMARY RESULT */}
-                  <div className={styles.primaryResultBlock}>
-                    <div className={styles.primaryResultHeader}>
-                      <span className={styles.primaryResultLabel}>Transferable File Size</span>
-                    </div>
-                    <div className={styles.primaryResultValue}>
-                      {transferableSizeCalculation.theoretical.data.formatted}
-                    </div>
-                    <div className={styles.primaryResultCaption}>
-                      At 100% throughput
-                    </div>
-                  </div>
-
-                  {/* SECONDARY RESULT */}
-                  {efficiency !== 100 && (
-                    <div className={styles.secondaryResultBlock}>
-                      <span className={styles.secondaryResultLabel}>
-                        Adjusted estimate · {efficiency}% of entered speed:
-                      </span>
-                      <span className={styles.secondaryResultValue}>
-                        {transferableSizeCalculation.estimated.data.formatted}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Supporting Metrics */}
-                  <div className={styles.supportingMetricsRow}>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Available time:</span>
-                      <span className={styles.metricVal}>
-                        {timeInput} {timeUnit}
-                      </span>
-                    </div>
-                    <div className={styles.supportingMetricItem}>
-                      <span className={styles.metricKey}>Transfer speed:</span>
-                      <span className={styles.metricVal}>
-                        {speedInput} {speedUnit}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.9375rem',
-                    padding: '0.5rem 0',
-                  }}
-                >
-                  Please enter a valid transfer speed and available time to calculate transferable file size.
-                </div>
-              )}
-            </>
-          )}
+        {/* Planning Efficiency */}
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel}>
+            Planning Efficiency: {efficiency}%
+          </label>
+          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+            {EFFICIENCY_PRESETS.map((eff) => (
+              <button
+                key={eff}
+                type="button"
+                className={`${styles.actionBtn} ${efficiency === eff ? styles.segmentBtnActive : ''}`}
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                onClick={() => setEfficiency(eff)}
+              >
+                {eff}%
+              </button>
+            ))}
+          </div>
+          <span className={styles.fieldHint}>
+            Planning efficiency applies an adjustable allowance for protocol, filesystem, device, and thermal overhead. It is an editable assumption, not a guaranteed rate.
+          </span>
         </div>
+      </div>
 
-        {/* Actions Row */}
-        <div className={styles.actionsRow}>
+      {/* Advanced File Batch Options Toggle */}
+      {mode !== 'bottleneck' && (
+        <>
           <button
             type="button"
-            className={`${styles.actionButton} ${styles.resetButton}`}
-            onClick={handleReset}
-            aria-label="Reset calculator to default values"
+            className={styles.advancedToggle}
+            onClick={() => setShowAdvanced(!showAdvanced)}
           >
-            Reset
+            {showAdvanced ? '▼ Hide Small-File Batch Planning' : '► Add Small-File Batch Overhead (Optional)'}
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {copyFeedback && (
-              <span className={styles.copiedNotice} role="status">
-                {copyFeedback}
-              </span>
-            )}
-            <button
-              type="button"
-              className={styles.actionButton}
-              onClick={handleCopyLink}
-              title="Copy link to current calculation settings"
-              aria-label="Copy shareable link with current calculator parameters"
-            >
-              Copy link
-            </button>
-          </div>
+          {showAdvanced && (
+            <div className={styles.advancedBox}>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>File Count</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className={styles.inputNumber}
+                  value={fileCountInput}
+                  onChange={(e) => setFileCountInput(e.target.value)}
+                  placeholder="1"
+                  aria-label="File count"
+                />
+                <span className={styles.fieldHint}>Total files in this batch transfer</span>
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Per-File Overhead (Seconds)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  className={styles.inputNumber}
+                  value={overheadInput}
+                  onChange={(e) => setOverheadInput(e.target.value)}
+                  placeholder="0.005"
+                  aria-label="Per-file overhead seconds"
+                />
+                <span className={styles.fieldHint}>
+                  Optional planning assumption for metadata and I/O latency across multi-file batches. Actual per-file latency varies by filesystem, OS, and drive.
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* RESULT CARDS */}
+
+      {/* Mode A: Transfer Time Output */}
+      {mode === 'transfer-time' && modeAResult && (
+        <div className={styles.resultCard}>
+          {modeAResult.success ? (
+            <>
+              <div className={styles.resultPrimary}>
+                <span className={styles.resultLabel}>Estimated Transfer Duration</span>
+                <span className={styles.resultValue}>{modeAResult.data.formattedDuration}</span>
+                <span className={styles.resultSubtitle}>
+                  Primary Bottleneck: <strong>{modeAResult.data.bottleneckStageLabel}</strong> (
+                  {modeAResult.data.rawBottleneckMBs.toFixed(2)} MB/s raw limit)
+                </span>
+              </div>
+
+              <div className={styles.resultGrid}>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>Effective Throughput</span>
+                  <span className={styles.metricValue}>
+                    {modeAResult.data.effectiveThroughputFormatted}
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>Data Per Hour</span>
+                  <span className={styles.metricValue}>
+                    {modeAResult.data.dataPerHourFormatted}
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>Pure Data Time</span>
+                  <span className={styles.metricValue}>
+                    {modeAResult.data.formattedPayloadDuration}
+                  </span>
+                </div>
+                {modeAResult.data.overheadSeconds > 0 && (
+                  <div className={styles.metricBox}>
+                    <span className={styles.metricLabel}>Batch Metadata Time</span>
+                    <span className={styles.metricValue}>
+                      {modeAResult.data.formattedOverheadDuration}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Headroom details */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '0.5rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.8125rem',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <div>
+                  <strong>Source Headroom:</strong>{' '}
+                  {modeAResult.data.stages.source.headroomPercent.toFixed(0)}% (
+                  +{modeAResult.data.stages.source.headroomMBs.toFixed(1)} MB/s)
+                </div>
+                <div>
+                  <strong>Interface Headroom:</strong>{' '}
+                  {modeAResult.data.stages.interface.headroomPercent.toFixed(0)}% (
+                  +{modeAResult.data.stages.interface.headroomMBs.toFixed(1)} MB/s)
+                </div>
+                <div>
+                  <strong>Destination Headroom:</strong>{' '}
+                  {modeAResult.data.stages.destination.headroomPercent.toFixed(0)}% (
+                  +{modeAResult.data.stages.destination.headroomMBs.toFixed(1)} MB/s)
+                </div>
+              </div>
+
+              <div className={styles.decisionNote}>{modeAResult.data.decisionNote}</div>
+            </>
+          ) : (
+            <div className={`${styles.decisionNote} ${styles.warningNote}`}>
+              {modeAResult.error}
+            </div>
+          )}
         </div>
-      </form>
+      )}
+
+      {/* Mode B: Bottleneck Analysis Output */}
+      {mode === 'bottleneck' && modeBResult && (
+        <div className={styles.resultCard}>
+          {modeBResult.success ? (
+            <>
+              <div className={styles.resultPrimary}>
+                <span className={styles.resultLabel}>Pipeline Bottleneck</span>
+                <span className={styles.resultValue}>{modeBResult.data.bottleneckStageLabel}</span>
+                <span className={styles.resultSubtitle}>
+                  Max Sustainable Effective Throughput: <strong>{modeBResult.data.effectiveMBs.toFixed(2)} MB/s</strong> (
+                  {modeBResult.data.effectiveMbps.toFixed(1)} Mbps) at {modeBResult.data.efficiencyPercent}% efficiency
+                </span>
+              </div>
+
+              <div className={styles.resultGrid}>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>1. Source Read</span>
+                  <span className={styles.metricValue}>
+                    {modeBResult.data.stages.source.speedMBs.toFixed(1)} MB/s
+                  </span>
+                  <span className={styles.fieldHint}>
+                    {modeBResult.data.stages.source.isBottleneck
+                      ? 'Limiting stage'
+                      : `+${modeBResult.data.stages.source.headroomPercent.toFixed(0)}% headroom`}
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>2. Interface / Bus</span>
+                  <span className={styles.metricValue}>
+                    {modeBResult.data.stages.interface.speedMBs.toFixed(1)} MB/s
+                  </span>
+                  <span className={styles.fieldHint}>
+                    {modeBResult.data.stages.interface.isBottleneck
+                      ? 'Limiting stage'
+                      : `+${modeBResult.data.stages.interface.headroomPercent.toFixed(0)}% headroom`}
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>3. Destination Write</span>
+                  <span className={styles.metricValue}>
+                    {modeBResult.data.stages.destination.speedMBs.toFixed(1)} MB/s
+                  </span>
+                  <span className={styles.fieldHint}>
+                    {modeBResult.data.stages.destination.isBottleneck
+                      ? 'Limiting stage'
+                      : `+${modeBResult.data.stages.destination.headroomPercent.toFixed(0)}% headroom`}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.decisionNote}>{modeBResult.data.decisionNote}</div>
+            </>
+          ) : (
+            <div className={`${styles.decisionNote} ${styles.warningNote}`}>
+              {modeBResult.error}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mode C: Required Interface Speed Output */}
+      {mode === 'required-interface' && modeCResult && (
+        <div className={styles.resultCard}>
+          {modeCResult.success ? (
+            <>
+              <div className={styles.resultPrimary}>
+                <span className={styles.resultLabel}>Required Interface Speed</span>
+                <span className={styles.resultValue}>
+                  {modeCResult.data.requiredRawInterfaceSpeedFormatted}
+                </span>
+                <span className={styles.resultSubtitle}>
+                  Effective throughput needed: <strong>{modeCResult.data.requiredEffectiveSpeedFormatted}</strong>
+                </span>
+              </div>
+
+              <div className={styles.resultGrid}>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>Feasibility</span>
+                  <span
+                    className={styles.metricValue}
+                    style={{
+                      color: modeCResult.data.isFeasible ? 'var(--brand-primary)' : '#dc2626',
+                    }}
+                  >
+                    {modeCResult.data.isFeasible ? 'Achievable' : 'Hard Storage Limit'}
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>Storage Ceiling</span>
+                  <span className={styles.metricValue}>
+                    {modeCResult.data.storageCeilingMBs.toFixed(1)} MB/s raw
+                  </span>
+                </div>
+                <div className={styles.metricBox}>
+                  <span className={styles.metricLabel}>Net Transfer Window</span>
+                  <span className={styles.metricValue}>
+                    {modeCResult.data.usableWindowFormatted}
+                  </span>
+                </div>
+                {modeCResult.data.overheadSeconds > 0 && (
+                  <div className={styles.metricBox}>
+                    <span className={styles.metricLabel}>Batch Metadata Loss</span>
+                    <span className={styles.metricValue}>
+                      {modeCResult.data.overheadSeconds.toFixed(1)}s
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={`${styles.decisionNote} ${
+                  !modeCResult.data.isFeasible ? styles.warningNote : ''
+                }`}
+              >
+                {modeCResult.data.decisionNote}
+              </div>
+            </>
+          ) : (
+            <div className={`${styles.decisionNote} ${styles.warningNote}`}>
+              {modeCResult.error}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions Row */}
+      <div className={styles.actionsRow}>
+        <button type="button" className={styles.actionBtn} onClick={handleReset}>
+          Reset Defaults
+        </button>
+        <button type="button" className={styles.actionBtn} onClick={handleCopyLink}>
+          {copyFeedback || 'Share Transfer Link'}
+        </button>
+      </div>
     </div>
   );
 }

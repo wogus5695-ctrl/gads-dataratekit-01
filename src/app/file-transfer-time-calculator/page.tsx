@@ -3,16 +3,15 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { FileTransferCalculator } from '@/components/calculator/FileTransferCalculator';
 import {
-  calculateTransferTime,
-  convertSpeed,
+  calculateFileTransferTime,
   SpeedUnit,
-} from '@/lib/transfer';
+} from '@/lib/file-transfer';
 import { getCanonicalUrl } from '@/config/site';
 import styles from '../page.module.css';
 
-const title = 'Free File Transfer Time Calculator — Copy Time';
+const title = 'File Transfer Time & Bottleneck Calculator';
 const description =
-  'Need to know how long a file copy will take? Enter file size and sustained transfer speed to get an instant estimate for SSD, USB, LAN, or NAS transfers.';
+  'Estimate file transfer time across source read, interface, and destination write speeds. Identify transfer bottlenecks and calculate effective throughput.';
 const canonical = getCanonicalUrl('/file-transfer-time-calculator');
 
 export const metadata: Metadata = {
@@ -26,72 +25,154 @@ export const metadata: Metadata = {
   },
 };
 
-interface BenchmarkSpeed {
-  speed: number;
-  unit: SpeedUnit;
-  label: string;
-  bitTargetUnit: SpeedUnit;
+interface BenchmarkRow {
+  scenario: string;
+  source: string;
+  interfaceRate: string;
+  destination: string;
+  limitingStage: string;
+  effectiveSpeed: string;
+  duration100GB: string;
 }
 
-const FILE_TRANSFER_BENCHMARK_SPEEDS: BenchmarkSpeed[] = [
-  { speed: 50, unit: 'MB/s', label: '50 MB/s', bitTargetUnit: 'Mbps' },
-  { speed: 100, unit: 'MB/s', label: '100 MB/s', bitTargetUnit: 'Mbps' },
-  { speed: 250, unit: 'MB/s', label: '250 MB/s', bitTargetUnit: 'Mbps' },
-  { speed: 500, unit: 'MB/s', label: '500 MB/s', bitTargetUnit: 'Mbps' },
-  { speed: 1, unit: 'GB/s', label: '1 GB/s', bitTargetUnit: 'Gbps' },
+const BENCHMARK_SCENARIOS: BenchmarkRow[] = [
+  {
+    scenario: 'Gigabit LAN to NAS HDD',
+    source: '500 MB/s (SATA SSD)',
+    interfaceRate: '1 Gbps (125 MB/s)',
+    destination: '180 MB/s (NAS HDD)',
+    limitingStage: 'Interface (1 Gbps)',
+    effectiveSpeed: '106.25 MB/s (85% eff)',
+    duration100GB: '15m 41s',
+  },
+  {
+    scenario: '10GbE LAN to NAS RAID',
+    source: '3,500 MB/s (NVMe SSD)',
+    interfaceRate: '10 Gbps (1,250 MB/s)',
+    destination: '350 MB/s (RAID 5 example)',
+    limitingStage: 'Destination Write',
+    effectiveSpeed: '297.50 MB/s (85% eff)',
+    duration100GB: '5m 36s',
+  },
+  {
+    scenario: 'External USB 3.0 HDD Backup',
+    source: '500 MB/s (SATA SSD)',
+    interfaceRate: '5 Gbps (625 MB/s)',
+    destination: '120 MB/s (Ext HDD)',
+    limitingStage: 'Destination Write',
+    effectiveSpeed: '102.00 MB/s (85% eff)',
+    duration100GB: '16m 20s',
+  },
+  {
+    scenario: 'Fast NVMe to External USB-C SSD',
+    source: '7,000 MB/s (PCIe 4.0)',
+    interfaceRate: '10 Gbps (1,250 MB/s)',
+    destination: '1,000 MB/s (Ext NVMe)',
+    limitingStage: 'Destination Write',
+    effectiveSpeed: '850.00 MB/s (85% eff)',
+    duration100GB: '1m 58s',
+  },
+  {
+    scenario: 'Legacy USB 2.0 Flash Drive',
+    source: '500 MB/s (Internal SSD)',
+    interfaceRate: '480 Mbps (60 MB/s)',
+    destination: '25 MB/s (USB Flash)',
+    limitingStage: 'Destination Write',
+    effectiveSpeed: '21.25 MB/s (85% eff)',
+    duration100GB: '1h 18m 26s',
+  },
 ];
 
-function getFileTransferBenchmarkRows() {
-  return FILE_TRANSFER_BENCHMARK_SPEEDS.map((item) => {
-    const timeRes = calculateTransferTime({
-      fileSize: 100,
-      fileSizeUnit: 'GB',
-      speed: item.speed,
-      speedUnit: item.unit,
-      efficiencyPercent: 100,
-    });
-    const bitRes = convertSpeed(item.speed, item.unit, item.bitTargetUnit);
-    return {
-      label: item.label,
-      bitRate: bitRes.success ? bitRes.data.formatted : '—',
-      duration: timeRes.success ? timeRes.data.duration.formatted : '—',
-    };
-  });
-}
-
 export default function FileTransferCalculatorPage() {
-  const benchmarkRows = getFileTransferBenchmarkRows();
-
   return (
     <main className={styles.pageContainer}>
       <header className={styles.headerSection}>
         <h1 className={styles.title}>File Transfer Time Calculator</h1>
         <p className={styles.description}>
-          Estimate how long a file copy or transfer will take from total data size and sustained transfer speed across internal drives, external storage, and local networks.
+          Estimate file transfer time across your source drive, connection interface or network, and destination drive. Compare all three stages to identify the throughput bottleneck and calculate realistic transfer duration.
         </p>
       </header>
 
       <FileTransferCalculator />
 
-      {/* 1. How the file transfer time calculation works */}
+      {/* 1. How file transfer bottlenecks work */}
       <section className={styles.contentSection} aria-labelledby="how-it-works-heading">
         <h2 id="how-it-works-heading" className={styles.supportingTitle}>
-          How the file transfer time calculation works
+          How file transfer bottlenecks work
         </h2>
         <div className={styles.prose}>
           <p>
-            When copying files between drives, transferring data across a local area network (LAN), or backing up data to an external SSD or network-attached storage (NAS), transfer duration is governed by total data volume and sustained transfer throughput:
+            Unlike internet downloads where a single ISP connection typically bounds your throughput, moving files between drives or across a local network involves a complete three-stage physical pipeline:
           </p>
-          <div>
-            <div className={styles.formulaBox}>
-              Transfer time = File size ÷ Sustained transfer speed
-            </div>
+          <div className={styles.formulaBox}>
+            Effective Throughput = min(Source Read, Interface / Bus Rate, Destination Write) × Planning Efficiency
           </div>
           <p>
-            Storage capacity and file sizes are measured in bytes (such as megabytes, gigabytes, or terabytes). Operating systems and file transfer dialogs typically report data copy rates in megabytes per second (MB/s). In contrast, connection interfaces and network links are often rated in bits per second (such as Gigabit Ethernet or USB 5Gbps). Because 1 byte contains 8 bits, an interface rated at 1 Gbps (1,000 Mbps) corresponds mathematically to an upper ceiling of 125 MB/s.
+            Total transfer duration is determined by your total payload size divided by this effective throughput, plus any metadata latency incurred across multi-file batches:
+          </p>
+          <div className={styles.formulaBox}>
+            Total Transfer Time = (Data Size ÷ Effective Throughput) + (File Count × Per-File Overhead)
+          </div>
+          <p>
+            Because data must flow sequentially from source to destination, every component must keep pace. If any single stage is slower than the others, it becomes the primary bottleneck, forcing the faster stages to operate below their rated capabilities.
+          </p>
+        </div>
+      </section>
+
+      {/* 2. Source read vs interface vs destination write */}
+      <section className={styles.contentSection} aria-labelledby="pipeline-stages-heading">
+        <h2 id="pipeline-stages-heading" className={styles.supportingTitle}>
+          Source read vs. interface rate vs. destination write speed
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Understanding where a bottleneck occurs requires evaluating each of the three stages in your data path independently:
+          </p>
+          <ul className={styles.itemList}>
+            <li>
+              <strong>Stage 1 — Source Read Speed:</strong> The original media (such as an internal PCIe NVMe SSD, SATA SSD, mechanical hard drive, or memory card) must retrieve data from storage blocks. Typical sequential read rates range from 90 MB/s for UHS-I SD cards to over 7,000 MB/s for modern PCIe 4.0 NVMe drives, though sustained real-world performance varies by controller and thermal conditions.
+            </li>
+            <li>
+              <strong>Stage 2 — Interface / Bus Bandwidth:</strong> The physical link connecting host systems and storage enclosures. Common interfaces include Gigabit Ethernet (1 Gbps nominal = 125 MB/s raw ceiling), 10GbE (1,250 MB/s ceiling), USB 3.0 (5 Gbps = 625 MB/s ceiling), USB 3.2 Gen 2 (10 Gbps = 1,250 MB/s ceiling), and Thunderbolt 4 (40 Gbps = 5,000 MB/s ceiling).
+            </li>
+            <li>
+              <strong>Stage 3 — Destination Write Speed:</strong> The target drive or networked array that commits incoming data to persistent media. For many mechanical drives and budget flash devices, sustained sequential write speeds (100–180 MB/s for HDDs, 30–70 MB/s for entry flash) are substantially lower than peak burst rates or read capabilities.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      {/* 3. Storage MB/s vs network Mbps/Gbps */}
+      <section className={styles.contentSection} aria-labelledby="units-heading">
+        <h2 id="units-heading" className={styles.supportingTitle}>
+          Storage MB/s vs. network Mbps and Gbps
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            One of the most frequent sources of confusion in file transfer planning is the mathematical distinction between bits and bytes:
           </p>
           <p>
-            The calculator is most useful when the entered rate represents the sustained transfer speed actually observed during the copy, rather than a theoretical interface peak. To convert directly between bit-based interface rates and byte-based copy speeds, you can use our{' '}
+            Operating systems, file managers (such as Windows File Explorer, macOS Finder, or rsync), and storage drive benchmarks measure throughput in <strong>Megabytes per second (MB/s)</strong> or <strong>Gigabytes per second (GB/s)</strong>. In contrast, network cards, Ethernet switches, Wi-Fi routers, and bus interfaces are rated in <strong>bits per second (Mbps or Gbps)</strong>.
+          </p>
+          <p>
+            Because <strong>1 Byte = 8 bits</strong>:
+          </p>
+          <ul className={styles.itemList}>
+            <li>
+              A <strong>1 Gigabit Ethernet (1 Gbps)</strong> network link provides an absolute theoretical maximum of 1,000,000,000 bits ÷ 8 = <strong>125 MB/s</strong>.
+            </li>
+            <li>
+              A <strong>2.5 GbE</strong> link caps out at 2,500,000,000 bits ÷ 8 = <strong>312.5 MB/s</strong>.
+            </li>
+            <li>
+              A <strong>10 GbE</strong> link provides up to 10,000,000,000 bits ÷ 8 = <strong>1,250 MB/s</strong>.
+            </li>
+            <li>
+              A <strong>USB 5Gbps (USB 3.0)</strong> bus provides a theoretical physical signaling ceiling of <strong>625 MB/s</strong> before encoding and protocol overhead.
+            </li>
+          </ul>
+          <p>
+            To quickly convert between bit rates and byte rates, you can use our{' '}
             <Link href="/mbps-to-mbs" className={styles.relatedLink}>
               Mbps to MB/s Converter
             </Link>
@@ -100,34 +181,140 @@ export default function FileTransferCalculatorPage() {
         </div>
       </section>
 
-      {/* 2. File transfer time examples (Benchmark Table + Worked Examples) */}
-      <section className={styles.contentSection} aria-labelledby="examples-heading">
-        <h2 id="examples-heading" className={styles.supportingTitle}>
-          File transfer time examples
+      {/* 4. Slowest stage controls throughput */}
+      <section className={styles.contentSection} aria-labelledby="slowest-stage-heading">
+        <h2 id="slowest-stage-heading" className={styles.supportingTitle}>
+          Why the slowest stage controls throughput (Headroom Analysis)
         </h2>
         <div className={styles.prose}>
           <p>
-            The reference table below illustrates theoretical transfer durations for a 100 GB example file across several example sustained transfer rates. These are theoretical values calculated using the full entered transfer speed without reductions for filesystem overhead, interface constraints, or storage latency.
+            In any serial transfer pipeline, investing in faster hardware only yields speed improvements if you upgrade the <em>limiting stage</em>. Consider a common high-performance workstation scenario:
+          </p>
+          <p>
+            You have an ultra-fast internal PCIe 4.0 NVMe SSD capable of reading data at <strong>7,000 MB/s</strong>, connected via a <strong>40 Gbps Thunderbolt 4 cable (5,000 MB/s raw)</strong> to an external backup enclosure containing a 7200 RPM mechanical hard drive that writes at <strong>180 MB/s</strong>.
+          </p>
+          <p>
+            Despite having 6,820 MB/s of unutilized source headroom and 4,820 MB/s of interface headroom, your actual transfer speed will not exceed 180 MB/s raw. Upgrading from a 10 Gbps cable to a 40 Gbps Thunderbolt cable will result in exactly <strong>0% speed improvement</strong> because the mechanical destination drive remains the bottleneck.
+          </p>
+        </div>
+      </section>
+
+      {/* 5. Why many small files take longer */}
+      <section className={styles.contentSection} aria-labelledby="small-files-heading">
+        <h2 id="small-files-heading" className={styles.supportingTitle}>
+          Why many small files take longer (I/O latency &amp; metadata overhead)
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Transferring a single 50 GB 4K video file often takes a fraction of the time required to copy 50 GB consisting of 100,000 small source code files, documents, or photo thumbnails across the exact same hardware.
+          </p>
+          <p>
+            This performance divergence occurs because sequential throughput numbers assume uninterrupted continuous data streams. When handling multi-file batches:
+          </p>
+          <ul className={styles.itemList}>
+            <li>
+              <strong>Filesystem Metadata &amp; Journaling:</strong> For every individual file, the operating system must allocate directory index records, update timestamps, assign security permissions, and log transactions in the filesystem journal (NTFS, APFS, or ext4).
+            </li>
+            <li>
+              <strong>I/O System Call Latency:</strong> Each file requires distinct system calls: open file, query attributes, allocate clusters, write payload, flush buffers, and close handle. On solid-state drives, this overhead is typically 2 to 5 milliseconds per file; on mechanical drives or across network shares, it can reach 15 to 30 milliseconds per file.
+            </li>
+            <li>
+              <strong>SMB / NFS Network Framing:</strong> Network file-sharing protocols require round-trip acknowledgment packets for every file metadata query, multiplying total latency across high-latency or Wi-Fi links.
+            </li>
+          </ul>
+          <p>
+            In this calculator, enabling the <strong>Small-File Batch Planning</strong> option allows you to model this cumulative overhead directly by specifying your file count and per-file latency.
+          </p>
+        </div>
+      </section>
+
+      {/* 6. Theoretical interface rate vs sustained transfer rate */}
+      <section className={styles.contentSection} aria-labelledby="sustained-vs-peak-heading">
+        <h2 id="sustained-vs-peak-heading" className={styles.supportingTitle}>
+          Theoretical interface rate vs. sustained transfer rate
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Why does a drive rated for 1,050 MB/s frequently drop to 150 MB/s after the first few gigabytes of a large transfer?
+          </p>
+          <ul className={styles.itemList}>
+            <li>
+              <strong>SLC Cache Exhaustion:</strong> Modern TLC and QLC SSDs use a portion of high-speed Single-Level Cell (SLC) pseudo-cache to absorb short bursts quickly. Once this cache fills during prolonged transfers (often after 20 GB to 100 GB of continuous writing), write speeds drop sharply to the native NAND flash write speed.
+            </li>
+            <li>
+              <strong>Thermal Throttling:</strong> Compact external SSDs and M.2 drives without active cooling can quickly reach 70°C to 80°C under continuous write workloads. To prevent hardware damage, the internal controller automatically throttles performance.
+            </li>
+            <li>
+              <strong>SMR Mechanical Drive Penalities:</strong> Shingled Magnetic Recording (SMR) hard drives must rewrite overlapping tracks when modifying data, causing drastic throughput drops during sustained random or sequential writes.
+            </li>
+          </ul>
+          <p>
+            Our calculator applies an adjustable default <strong>85% Planning Efficiency</strong> to account for sustained thermal throttling, protocol encapsulation (SMB/NFS/USB packet framing), and filesystem journaling. This value serves as an editable planning baseline rather than a universal performance constant.
+          </p>
+        </div>
+      </section>
+
+      {/* 7. Local, external, LAN & NAS transfer planning */}
+      <section className={styles.contentSection} aria-labelledby="transfer-planning-heading">
+        <h2 id="transfer-planning-heading" className={styles.supportingTitle}>
+          Local drive, external storage, LAN, and NAS transfer planning
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Use these practical guidelines when configuring your transfer pipeline:
+          </p>
+          <ul className={styles.itemList}>
+            <li>
+              <strong>Local NVMe to NVMe:</strong> Internal PCIe bus bandwidth (3,500–7,000 MB/s) is rarely the bottleneck. Performance is primarily dictated by the sustained write capability and thermal dissipation of the receiving SSD.
+            </li>
+            <li>
+              <strong>PC to External USB SSD:</strong> Verify port capabilities. Connecting a 1,000 MB/s NVMe external drive to a standard USB 3.0 (5 Gbps) port limits transfer throughput to approximately 420–450 MB/s effective. Use a USB 3.2 Gen 2 (10 Gbps) or Thunderbolt port to achieve full drive speed.
+            </li>
+            <li>
+              <strong>PC to NAS over Gigabit Ethernet:</strong> Standard 1GbE is capped at 125 MB/s raw (~105–112 MB/s real-world). If your NAS has a fast RAID array or SSD cache, upgrading your PC, switch, and NAS to <strong>2.5GbE (312 MB/s)</strong> or <strong>10GbE (1,250 MB/s)</strong> will yield immediate, noticeable throughput improvements.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      {/* 8. Benchmark Table & Worked Scenarios */}
+      <section className={styles.contentSection} aria-labelledby="benchmarks-heading">
+        <h2 id="benchmarks-heading" className={styles.supportingTitle}>
+          Multi-stage transfer benchmark reference &amp; worked scenarios
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            The table below compares estimated transfer durations for a 100 GB dataset across representative storage and network pipelines at 85% planning efficiency:
           </p>
         </div>
 
         <div className={styles.tableWrapper}>
-          <table className={styles.benchmarkTable} aria-label="100 GB file transfer time reference table">
+          <table className={styles.benchmarkTable} aria-label="100 GB multi-stage file transfer reference table">
             <thead>
               <tr>
-                <th scope="col">Sustained transfer speed</th>
-                <th scope="col">Equivalent bit rate</th>
-                <th scope="col">Theoretical transfer time (100 GB)</th>
+                <th scope="col">Pipeline Scenario</th>
+                <th scope="col">Source Read</th>
+                <th scope="col">Interface / LAN</th>
+                <th scope="col">Dest Write</th>
+                <th scope="col">Limiting Bottleneck</th>
+                <th scope="col">Effective Speed</th>
+                <th scope="col">100 GB Time</th>
               </tr>
             </thead>
             <tbody>
-              {benchmarkRows.map((row) => (
-                <tr key={row.label}>
+              {BENCHMARK_SCENARIOS.map((row) => (
+                <tr key={row.scenario}>
                   <th scope="row" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {row.label}
+                    {row.scenario}
                   </th>
-                  <td>{row.bitRate}</td>
-                  <td>{row.duration}</td>
+                  <td>{row.source}</td>
+                  <td>{row.interfaceRate}</td>
+                  <td>{row.destination}</td>
+                  <td>
+                    <span style={{ fontWeight: 600, color: '#b45309' }}>{row.limitingStage}</span>
+                  </td>
+                  <td>{row.effectiveSpeed}</td>
+                  <td style={{ fontWeight: 600 }}>{row.duration100GB}</td>
                 </tr>
               ))}
             </tbody>
@@ -138,175 +325,35 @@ export default function FileTransferCalculatorPage() {
           <h3 className={styles.subheading}>Worked transfer scenarios</h3>
 
           <div className={styles.exampleBlock}>
-            <div className={styles.exampleTitle}>Medium project backup (50 GB at 100 MB/s)</div>
+            <div className={styles.exampleTitle}>
+              Scenario A: Internal NVMe to External SSD via USB 3.0 (100 GB)
+            </div>
             <div className={styles.exampleDesc}>
-              A 50 GB dataset equals 50,000 megabytes. Transferring this volume at a sustained rate of 100 MB/s requires 500 seconds, which equals exactly 8 minutes and 20 seconds under consistent sustained throughput.
+              A 100 GB 4K video project is transferred from a 3,500 MB/s internal NVMe SSD to a fast external portable SSD (1,050 MB/s write capability) over a USB 3.0 (5 Gbps) port. USB 3.0 caps raw throughput to 625 MB/s, making the USB interface the bottleneck. At 85% planning efficiency, effective throughput is 531.25 MB/s, completing the transfer in approximately <strong>3 minutes and 8 seconds</strong>.
             </div>
           </div>
 
           <div className={styles.exampleBlock}>
-            <div className={styles.exampleTitle}>Large media archive migration (250 GB at 250 MB/s)</div>
+            <div className={styles.exampleTitle}>
+              Scenario B: PC to NAS Backup over 1GbE vs. 10GbE (250 GB)
+            </div>
             <div className={styles.exampleDesc}>
-              A 250 GB archive contains 250,000 megabytes. Moving this data at a sustained rate of 250 MB/s takes 1,000 seconds, or exactly 16 minutes and 40 seconds.
+              Backing up a 250 GB system archive from an internal SSD to a 4-disk NAS RAID array (using a 350 MB/s planning example; actual throughput depends on drive model, RAID level, controller, and filesystem) over standard Gigabit Ethernet (1 Gbps = 125 MB/s raw limit) takes <strong>39 minutes and 13 seconds</strong> (interface bottleneck). Upgrading the network link to 10GbE shifts the bottleneck to the NAS array (350 MB/s), reducing the transfer duration to just <strong>14 minutes and 0 seconds</strong>.
             </div>
           </div>
 
           <div className={styles.exampleBlock}>
-            <div className={styles.exampleTitle}>System drive image backup (1 TB at 500 MB/s)</div>
+            <div className={styles.exampleTitle}>
+              Scenario C: Small-File Photo Batch with Filesystem Overhead (20 GB, 15,000 files)
+            </div>
             <div className={styles.exampleDesc}>
-              A 1 TB image equals 1,000 GB (1,000,000 MB) using standard decimal storage units. At a sustained throughput of 500 MB/s, theoretical transfer time is 2,000 seconds, which equals 33 minutes and 20 seconds.
+              Copying 20 GB of RAW photos (15,000 individual files) to an external SSD. At 500 MB/s sustained throughput (85% eff = 425 MB/s), the pure data transfer takes 47 seconds. However, with an average filesystem metadata latency of 0.015 seconds per file across the external link, metadata handling adds 225 seconds. Total transfer time is <strong>4 minutes and 32 seconds</strong>, with metadata overhead accounting for over 82% of total duration.
             </div>
           </div>
         </div>
       </section>
 
-      {/* 3. What limits file transfer speed */}
-      <section className={styles.contentSection} aria-labelledby="bottleneck-heading">
-        <h2 id="bottleneck-heading" className={styles.supportingTitle}>
-          What limits file transfer speed
-        </h2>
-        <div className={styles.prose}>
-          <p>
-            In real-world data transfers, the end-to-end transfer rate is shaped by every component in the data path. While performance is often bounded by the slowest relevant component, multiple factors can interact simultaneously to determine sustained throughput:
-          </p>
-          <ul className={styles.itemList}>
-            <li>
-              <strong>Source drive read speed:</strong> The medium holding the original data (such as an internal SSD, mechanical hard drive, or external storage) must read and deliver data continuously. If the source drive cannot sustain high read rates, the rest of the transfer pipeline is constrained.
-            </li>
-            <li>
-              <strong>Destination drive write speed:</strong> The receiving storage medium must write incoming data to disk. For many storage devices, sustained sequential write speeds may be lower than read speeds due to caching behavior, media write characteristics, or device-level management.
-            </li>
-            <li>
-              <strong>Connection interface and bus bandwidth:</strong> External connections (such as USB, Thunderbolt, or SATA) and internal buses (PCIe lanes) define the maximum data bandwidth available between host controllers and storage devices.
-            </li>
-            <li>
-              <strong>Local network infrastructure (for NAS and LAN transfers):</strong> Networked transfers traverse network interface cards (NICs), switches, routers, and wireless links. Negotiated link speeds, network path limits, and concurrent traffic establish the upper network ceiling.
-            </li>
-            <li>
-              <strong>Filesystem and operating system overhead:</strong> Filesystem metadata, block allocation, journaling, directory updates, and other bookkeeping operations can add processing work depending on the filesystem and workload.
-            </li>
-            <li>
-              <strong>Protocol processing and transport overhead:</strong> Network file-sharing protocols can introduce additional protocol and latency overhead depending on the protocol, client, server configuration, and workload.
-            </li>
-            <li>
-              <strong>Internal caching and thermal behavior:</strong> Some storage devices show different short-burst and sustained transfer performance because of caching behavior, internal media handling, or thermal conditions that can lead to throttling during prolonged heavy writes.
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      {/* 4. Interface rate vs. sustained copy speed */}
-      <section className={styles.contentSection} aria-labelledby="interface-vs-sustained-heading">
-        <h2 id="interface-vs-sustained-heading" className={styles.supportingTitle}>
-          Interface rate vs. sustained copy speed
-        </h2>
-        <div className={styles.prose}>
-          <p>
-            Nominal link rates (such as USB 5Gbps, USB 10Gbps, Gigabit Ethernet, or Thunderbolt 4) describe interface capability, not guaranteed application-level file-copy throughput.
-          </p>
-          <p>
-            For example, an external drive connected via a USB 10Gbps port is theoretically capable of transporting over 1 GB/s across the physical cable. However, if the underlying drive inside the enclosure is a mechanical hard disk with a sustained write capability of 140 MB/s, the file transfer will proceed at 140 MB/s, regardless of the 10Gbps interface headroom.
-          </p>
-          <p>
-            <strong>Preset options in the calculator:</strong> The interface presets provided in this calculator (such as Gigabit Ethernet, USB, or Thunderbolt) supply nominal interface or link rates for quick reference. When using an interface preset, the resulting time represents an idealized ceiling that assumes the storage hardware and transfer pipeline can fully saturate the connection.
-          </p>
-          <p>
-            <strong>The 100% default calculation:</strong> Unlike internet download or upload planning where unknown network congestion is common, local file transfers are often evaluated against a known, observed sustained copy speed from an active file manager dialog. When an observed sustained rate is entered, the calculator applies 100% of that rate directly without arbitrary reductions.
-          </p>
-          <p>
-            <strong>Planning adjustments (95%, 90%, 85%, 80%):</strong> The optional adjustment settings model lower-throughput planning scenarios. They allow users to evaluate the impact of reduced throughput without assuming that specific technologies conform to a fixed overhead percentage.
-          </p>
-        </div>
-      </section>
-
-      {/* 5. Why many small files can transfer more slowly */}
-      <section className={styles.contentSection} aria-labelledby="small-files-heading">
-        <h2 id="small-files-heading" className={styles.supportingTitle}>
-          Why many small files can transfer more slowly
-        </h2>
-        <div className={styles.prose}>
-          <p>
-            Users frequently observe that transferring a 50 GB folder containing 100,000 small documents, source code files, or photos takes significantly longer than transferring a single 50 GB video file, even across the exact same storage hardware.
-          </p>
-          <p>
-            This difference occurs because each individual file requires dedicated operating system and filesystem transactions:
-          </p>
-          <ul className={styles.itemList}>
-            <li>
-              <strong>Filesystem metadata creation:</strong> For every file, the operating system must create a new directory record, verify naming rules, assign access permissions, record timestamps, and allocate physical storage clusters.
-            </li>
-            <li>
-              <strong>Per-file I/O operations:</strong> Each file requires separate open, read, write, flush, and close system calls. The latency of executing these operations thousands of times accumulates into substantial idle time between actual payload writes.
-            </li>
-            <li>
-              <strong>Potential non-sequential access patterns:</strong> Small files and their corresponding directory entries can involve non-sequential read and write operations across storage blocks, which can add storage controller latency compared to continuous sequential streams.
-            </li>
-            <li>
-              <strong>Network protocol latency on networked transfers:</strong> On networked file shares, each file operation may require round-trip acknowledgments between client and server, multiplying latency over thousands of files depending on protocol and network configuration.
-            </li>
-          </ul>
-          <p>
-            Combining many small files into fewer larger archive files (such as a tar or zip container) may improve transfer efficiency in some workflows by reducing per-file metadata operations, though creating and extracting the archive also requires processing time.
-          </p>
-        </div>
-      </section>
-
-      {/* 6. How to choose the correct transfer speed */}
-      <section className={styles.contentSection} aria-labelledby="how-to-choose-heading">
-        <h2 id="how-to-choose-heading" className={styles.supportingTitle}>
-          How to choose the correct transfer speed
-        </h2>
-        <div className={styles.prose}>
-          <p>
-            Entering an appropriate transfer speed is essential for realistic transfer planning:
-          </p>
-          <ul className={styles.itemList}>
-            <li>
-              <strong>Use an observed sustained copy rate:</strong> A representative sustained rate observed during a comparable transfer between the same devices (reported in MB/s by file managers like Windows File Explorer, macOS Finder, or rsync) provides a realistic basis for estimation.
-            </li>
-            <li>
-              <strong>Prioritize sustained rates over initial burst speeds:</strong> Some operating systems and storage devices show high initial transfer rates during the first few seconds of a copy due to caching or memory buffering, before leveling off to a lower sustained rate. For long transfers, use the leveled-off sustained rate.
-            </li>
-            <li>
-              <strong>Treat interface presets as theoretical ceilings:</strong> If you only know the interface specification (such as a Gigabit Ethernet link or a USB 3.0 port), select that preset to see the absolute theoretical minimum transfer duration. Then consider using an adjustment scenario if your drives cannot saturate the link.
-            </li>
-            <li>
-              <strong>Verify MB/s versus Mbps units:</strong> Ensure your speed unit matches your data source. Storage benchmarks and file copy dialogs report in megabytes per second (MB/s), whereas network cards and interface cables are rated in megabits per second (Mbps or Gbps).
-            </li>
-            <li>
-              <strong>Account for NAS and network path bottlenecks:</strong> On local network transfers, the mathematical link conversion (such as 1 Gbps = 125 MB/s) represents nominal network bandwidth, not guaranteed file-copy throughput. Real-world NAS throughput depends on the storage subsystem, array or drive configuration, CPU resources, protocol behavior, and concurrent network traffic.
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      {/* 7. Common file-transfer mistakes */}
-      <section className={styles.contentSection} aria-labelledby="common-mistakes-heading">
-        <h2 id="common-mistakes-heading" className={styles.supportingTitle}>
-          Common file-transfer mistakes to avoid
-        </h2>
-        <div className={styles.prose}>
-          <ul className={styles.itemList}>
-            <li>
-              <strong>Equating interface ratings with sustained transfer speed:</strong> Assuming a USB 10Gbps or Gigabit Ethernet connection will transfer files at the interface&apos;s maximum rated signaling speed, regardless of the drives attached.
-            </li>
-            <li>
-              <strong>Confusing megabits (Mbps) and megabytes (MB/s):</strong> Overlooking that 1 byte consists of 8 bits. An interface rated at 1 Gbps (1,000 Mbps) can deliver at most 125 MB/s of theoretical payload, not 1,000 MB/s.
-            </li>
-            <li>
-              <strong>Overlooking destination drive write bottlenecks:</strong> Focusing exclusively on how fast the source drive can read data, while neglecting that the destination drive may write at a substantially lower rate.
-            </li>
-            <li>
-              <strong>Using short burst speeds for long transfer planning:</strong> Entering an initial burst speed observed during the first few seconds of a copy, which may reflect temporary memory buffering or device caching rather than representative sustained write capability.
-            </li>
-            <li>
-              <strong>Assuming small files transfer as fast as large sequential files:</strong> Expecting thousands of small loose files to copy at the same sustained throughput as a single continuous media archive.
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      {/* 8. Frequently asked questions */}
+      {/* 9. Frequently asked questions */}
       <section className={styles.contentSection} aria-labelledby="faq-heading">
         <h2 id="faq-heading" className={styles.supportingTitle}>
           Frequently asked questions
@@ -314,55 +361,55 @@ export default function FileTransferCalculatorPage() {
         <div className={styles.faqList}>
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              How long does 100 GB take to transfer at 100 MB/s?
+              How does the File Transfer Calculator identify the bottleneck?
             </div>
             <div className={styles.faqAnswer}>
-              At a sustained transfer rate of 100 MB/s, transferring 100 GB requires exactly 1,000 seconds, which equals 16 minutes and 40 seconds under theoretical conditions using the full entered speed. If evaluating a planning scenario such as 90% of the entered speed, the same transfer would take approximately 18 minutes and 31 seconds.
+              The calculator converts your Source Read Speed, Interface / Network Speed, and Destination Write Speed into normalized Bytes per Second (B/s). It identifies the minimum value as the primary bottleneck and computes the headroom percentage for the remaining stages, showing exactly which component limits your copy speed.
             </div>
           </div>
 
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              Why is my file transfer slower than the USB or Ethernet rating?
+              Why is a 1 Gbps Ethernet connection slower than a 500 MB/s SATA SSD?
             </div>
             <div className={styles.faqAnswer}>
-              Connection interface ratings describe nominal interface capability, not application-level storage throughput. The actual transfer rate is bounded by the slowest relevant component in the pipeline, such as destination write performance, filesystem bookkeeping, or protocol overhead.
+              Because 1 Byte consists of 8 bits. A 1 Gigabit per second (1 Gbps) Ethernet link has an absolute theoretical ceiling of 125 Megabytes per second (125 MB/s). Even a budget SATA III SSD operating at 500 MB/s is four times faster than Gigabit Ethernet.
             </div>
           </div>
 
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              Should I enter MB/s or Mbps into the calculator?
+              Why do transfers start fast and slow down significantly later?
             </div>
             <div className={styles.faqAnswer}>
-              Enter the speed unit that corresponds to your measurement. File copy progress dialogs in operating systems like Windows and macOS typically report data transfer rates in megabytes per second (MB/s), whereas network link ratings are usually expressed in megabits per second (Mbps). Because 1 byte contains 8 bits, 100 MB/s is equivalent to 800 Mbps.
+              Operating systems use available RAM as a write buffer, and modern SSDs use fast pseudo-SLC cache. During the first few gigabytes, data is absorbed rapidly. Once this buffer is exhausted, the drive must flush data directly to slower native TLC/QLC flash or mechanical platters, revealing true sustained write performance.
             </div>
           </div>
 
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              Why do many small files copy more slowly than one large file of the same total size?
+              How do I use Mode C (Required Interface Speed)?
             </div>
             <div className={styles.faqAnswer}>
-              Each individual file requires the filesystem and operating system to handle directory updates, allocation bookkeeping, and per-file I/O operations. When copying thousands of small files, the cumulative overhead of these repeated operations can substantially lower effective throughput compared to a single continuous sequential stream.
+              Mode C allows you to enter a dataset size and your target completion deadline (for example, transferring 100 GB within 15 minutes). The calculator determines the minimum network or bus speed required and verifies whether your source and destination drives can sustain that throughput without hitting a hard storage ceiling.
             </div>
           </div>
 
           <div className={styles.faqItem}>
             <div className={styles.faqQuestion}>
-              What speed should I enter for a NAS transfer?
+              How can I reduce small-file transfer slowdowns?
             </div>
             <div className={styles.faqAnswer}>
-              Use an observed sustained copy rate from your file manager or backup utility when available. If only a nominal network link rate is known (such as Gigabit Ethernet = 125 MB/s), treat it as an interface ceiling rather than a guaranteed file-copy rate, because NAS storage performance, device resources, array configuration, and protocol overhead determine actual sustained throughput.
+              To minimize filesystem metadata overhead, archive or compress your files into a single container (such as a ZIP, TAR, or 7z archive) before transferring. Moving one 20 GB archive file avoids tens of thousands of individual filesystem creation and attribute-setting operations.
             </div>
           </div>
         </div>
       </section>
 
-      {/* 9. Related tools */}
+      {/* 10. Related tools */}
       <section className={styles.contentSection} aria-labelledby="related-tools-heading">
         <nav className={styles.relatedTools} aria-label="Related tools">
-          <span id="related-tools-heading">Need other calculations or unit conversions?</span>
+          <span id="related-tools-heading">Need other network planning tools?</span>
           <Link href="/" className={styles.relatedLink}>
             Download Time Calculator
           </Link>
@@ -373,6 +420,14 @@ export default function FileTransferCalculatorPage() {
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/mbps-to-mbs" className={styles.relatedLink}>
             Mbps to MB/s Converter
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size-calculator" className={styles.relatedLink}>
+            Video File Size Calculator
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/data-usage-calculator" className={styles.relatedLink}>
+            Data Usage Calculator
           </Link>
         </nav>
       </section>

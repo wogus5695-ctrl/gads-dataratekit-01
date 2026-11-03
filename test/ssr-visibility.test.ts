@@ -41,8 +41,9 @@ describe('Core Utilities SSR / Initial HTML Visibility', () => {
 
     assert.strictEqual(html.includes('Loading calculator...'), false, 'Must not contain Loading calculator fallback');
     assert.ok(html.includes('File Transfer Time Calculator'), 'H1 title must be present');
-    assert.ok(html.includes('File Transfer Time'), 'Primary result label must be present');
-    assert.ok(html.includes('16 minutes 40 seconds'), 'Default 100 GB @ 100 MB/s result must be present in initial HTML');
+    assert.ok(html.includes('Estimated Transfer Duration'), 'Primary result label must be present');
+    assert.ok(html.includes('15 minutes 41 seconds'), 'Default 100 GB multi-stage result must be present in initial HTML');
+    assert.ok(html.includes('Interface / Network'), 'Bottleneck stage must be present in initial HTML');
   });
 
   it('Mbps to MB/s Converter (/mbps-to-mbs) initial HTML renders bidirectional inputs and defaults', () => {
