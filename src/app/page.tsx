@@ -382,6 +382,35 @@ export default function DownloadCalculatorPage() {
         </div>
       </section>
 
+      {/* 10.5 Popular Calculation Guides */}
+      <section className={styles.contentSection} aria-labelledby="common-downloads-heading">
+        <h2 id="common-downloads-heading" className={styles.sectionTitle}>
+          Common Download Time Calculations
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Explore detailed transfer breakdowns across home broadband plans (25 Mbps to 2.5 Gbps) for common file sizes:
+          </p>
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common download calculations">
+          <Link href="/download-time/10gb" className={styles.relatedLink}>
+            10 GB Download Time
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-time/50gb" className={styles.relatedLink}>
+            50 GB Download Time
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-time/100gb" className={styles.relatedLink}>
+            100 GB Download Time
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-time/1tb" className={styles.relatedLink}>
+            1 TB Download Time
+          </Link>
+        </nav>
+      </section>
+
       {/* 11. Related tools */}
       <section className={styles.contentSection} aria-labelledby="related-tools-heading">
         <nav className={styles.relatedTools} aria-label="Related tools">

@@ -406,6 +406,27 @@ export default function FileTransferCalculatorPage() {
         </div>
       </section>
 
+      {/* 9.5 Common File Transfer Calculations */}
+      <section className={styles.contentSection} aria-labelledby="common-transfers-heading">
+        <h2 id="common-transfers-heading" className={styles.supportingTitle}>
+          Common File Transfer Calculations
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Review 3-stage hardware bottleneck and duration breakdowns across SSD, USB, and LAN/NAS pipelines for large payloads:
+          </p>
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common file transfer calculations">
+          <Link href="/file-transfer-time/100gb" className={styles.relatedLink}>
+            100 GB File Transfer Time
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/file-transfer-time/1tb" className={styles.relatedLink}>
+            1 TB File Transfer Time
+          </Link>
+        </nav>
+      </section>
+
       {/* 10. Related tools */}
       <section className={styles.contentSection} aria-labelledby="related-tools-heading">
         <nav className={styles.relatedTools} aria-label="Related tools">

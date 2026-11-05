@@ -298,6 +298,35 @@ export default function UploadCalculatorPage() {
         </div>
       </section>
 
+      {/* 7.5 Common Upload Calculations */}
+      <section className={styles.contentSection} aria-labelledby="common-uploads-heading">
+        <h2 id="common-uploads-heading" className={styles.supportingTitle}>
+          Common Upload Time Calculations
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Review detailed upstream estimates across residential and commercial upload speeds (5 Mbps to 1 Gbps) for common file sizes:
+          </p>
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common upload calculations">
+          <Link href="/upload-time/10gb" className={styles.relatedLink}>
+            10 GB Upload Time
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/upload-time/50gb" className={styles.relatedLink}>
+            50 GB Upload Time
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/upload-time/100gb" className={styles.relatedLink}>
+            100 GB Upload Time
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/upload-time/1tb" className={styles.relatedLink}>
+            1 TB Upload Time
+          </Link>
+        </nav>
+      </section>
+
       {/* 8. Related Tools Navigation */}
       <section className={styles.contentSection} aria-labelledby="related-tools-heading">
         <nav className={styles.relatedTools} aria-label="Related tools">

@@ -124,4 +124,17 @@ export const INDEXABLE_ROUTES = [
   '/contact',
   '/privacy',
   '/terms',
+  // Programmatic SEO Calculation Answer Pilot (12 Pages)
+  '/download-time/10gb',
+  '/download-time/50gb',
+  '/download-time/100gb',
+  '/download-time/1tb',
+  '/upload-time/10gb',
+  '/upload-time/50gb',
+  '/upload-time/100gb',
+  '/upload-time/1tb',
+  '/file-transfer-time/100gb',
+  '/file-transfer-time/1tb',
+  '/video-file-size/10-minutes',
+  '/video-file-size/1-hour',
 ] as const;

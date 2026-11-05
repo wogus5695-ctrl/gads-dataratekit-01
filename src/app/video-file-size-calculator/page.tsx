@@ -321,6 +321,27 @@ export default function VideoCalculatorPage() {
         </div>
       </section>
 
+      {/* 8.5 Common Video Scenarios */}
+      <section className={styles.contentSection} aria-labelledby="common-video-heading">
+        <h2 id="common-video-heading" className={styles.supportingTitle}>
+          Common Video File Size Scenarios
+        </h2>
+        <div className={styles.prose}>
+          <p>
+            Review detailed bitrate, resolution, and storage budget tables for common video runtimes:
+          </p>
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common video calculations">
+          <Link href="/video-file-size/10-minutes" className={styles.relatedLink}>
+            10 Minutes Video File Size
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size/1-hour" className={styles.relatedLink}>
+            1 Hour Video File Size
+          </Link>
+        </nav>
+      </section>
+
       {/* 9. Related tools */}
       <section className={styles.contentSection} aria-labelledby="related-tools-heading">
         <nav className={styles.relatedTools} aria-label="Related tools">
