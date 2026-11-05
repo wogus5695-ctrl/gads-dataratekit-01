@@ -333,7 +333,7 @@ export default function VideoCalculatorPage() {
         </div>
         <nav className={styles.relatedTools} aria-label="Common video calculations">
           <Link href="/video-file-size/10-minutes" className={styles.relatedLink}>
-            10 Minutes Video File Size
+            10-Minute Video File Size
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/video-file-size/1-hour" className={styles.relatedLink}>

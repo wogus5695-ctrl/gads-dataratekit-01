@@ -11,6 +11,8 @@ function unwrap<T>(res: { success: true; data: T } | { success: false; error: st
 interface VideoScenarioDef {
   slug: string;
   durationLabel: string;
+  durationNoun: string;
+  durationModifier: string;
   durationSeconds: number;
   audioBitrateKbps: number;
   typicalWorkload: string;
@@ -20,7 +22,9 @@ interface VideoScenarioDef {
 const VIDEO_DEFS: VideoScenarioDef[] = [
   {
     slug: '10-minutes',
-    durationLabel: '10 Minutes',
+    durationLabel: '10-Minute',
+    durationNoun: '10 minutes',
+    durationModifier: '10-minute',
     durationSeconds: 600,
     audioBitrateKbps: 192,
     typicalWorkload: 'short YouTube tutorials, presentation recordings, social media clips, and drone aerial takes',
@@ -34,6 +38,8 @@ const VIDEO_DEFS: VideoScenarioDef[] = [
   {
     slug: '1-hour',
     durationLabel: '1 Hour',
+    durationNoun: '1 hour',
+    durationModifier: '1-hour',
     durationSeconds: 3600,
     audioBitrateKbps: 320,
     typicalWorkload: 'podcast video recordings, webinars, live stream archives, conference keynotes, and documentary interviews',
@@ -107,7 +113,7 @@ export function getVideoPageData(slug: string): VideoPageData | null {
         storageLimitLabel: limit.label,
         maxAllowableVideoBitrate: 'N/A',
         isFeasible: false,
-        recommendation: `Audio bitrate (${def.audioBitrateKbps} kbps) alone exceeds or approaches this storage ceiling over ${def.durationLabel}.`,
+        recommendation: `Audio bitrate (${def.audioBitrateKbps} kbps) alone exceeds or approaches this storage ceiling over ${def.durationNoun}.`,
       };
     }
 
@@ -127,7 +133,7 @@ export function getVideoPageData(slug: string): VideoPageData | null {
     slug: d.slug,
     label: `${d.durationLabel} Video File Size`,
     href: `/video-file-size/${d.slug}`,
-    description: `Estimate video file sizes across bitrates and resolutions for ${d.durationLabel} runtimes.`,
+    description: `Estimate video file sizes across bitrates and resolutions for ${d.durationModifier} runtimes.`,
   }));
 
   const calculatorQuery = `?mode=find-size&video=5&vUnit=Mbps&audio=${def.audioBitrateKbps}&aUnit=kbps&h=${Math.floor(def.durationSeconds / 3600)}&m=${Math.floor((def.durationSeconds % 3600) / 60)}&s=0`;
@@ -138,14 +144,14 @@ export function getVideoPageData(slug: string): VideoPageData | null {
     durationSeconds: def.durationSeconds,
     audioBitrateKbps: def.audioBitrateKbps,
     title: `How Large is a ${def.durationLabel} Video? Bitrate & Size Guide`,
-    metaDescription: `Compare ${def.durationLabel} video file sizes from 720p (2 Mbps) to 4K (50-100 Mbps) with reverse bitrate storage budgets and memory card requirements.`,
+    metaDescription: `Compare ${def.durationModifier} video file sizes from 720p (2 Mbps) to 4K (50-100 Mbps) with reverse bitrate storage budgets and memory card requirements.`,
     h1: `How Large is a ${def.durationLabel} Video File?`,
-    directAnswerSummary: `A ${def.durationLabel} video recorded at standard 1080p web bitrate (5 Mbps video + ${def.audioBitrateKbps} kbps audio) is approximately ${baseline.calculatedFileSize} (${baseline.storagePerMinute}). In high-quality 4K at 50 Mbps, the same duration consumes ${bitrateRows[4].calculatedFileSize}.`,
+    directAnswerSummary: `A ${def.durationModifier} video recorded at standard 1080p web bitrate (5 Mbps video + ${def.audioBitrateKbps} kbps audio) is approximately ${baseline.calculatedFileSize} (${baseline.storagePerMinute}). In high-quality 4K at 50 Mbps, the same duration consumes ${bitrateRows[4].calculatedFileSize}.`,
     baselineUseCase: baseline.useCaseLabel,
     baselineFileSize: baseline.calculatedFileSize,
     baselineTotalBitrate: baseline.totalBitrateMbps,
     contextNotes: [
-      `A ${def.durationLabel} recording session commonly covers ${def.typicalWorkload}.`,
+      `A ${def.durationModifier} recording session commonly covers ${def.typicalWorkload}.`,
       ...def.practicalConsiderations,
     ],
     bitrateRows,

@@ -122,6 +122,15 @@ test('Programmatic SEO Answer Pilot — Registry & Route Coverage', async (t) =>
     // Rejection of unknown parameters
     assert.equal(getVideoPageData('30-minutes'), null);
     assert.equal(getVideoPageData('10-hours'), null);
+
+    // Grammar check for 10-minute compound adjective
+    const data10min = getVideoPageData('10-minutes')!;
+    assert.equal(data10min.durationLabel, '10-Minute');
+    assert.equal(data10min.title, 'How Large is a 10-Minute Video? Bitrate & Size Guide');
+    assert.equal(data10min.h1, 'How Large is a 10-Minute Video File?');
+    assert.ok(data10min.metaDescription.startsWith('Compare 10-minute video file sizes'));
+    assert.ok(!data10min.title.includes('10 Minutes Video'));
+    assert.ok(!data10min.h1.includes('10 Minutes Video'));
   });
 
   await t.test('7. Deterministic calculations check for 100 GB @ 100 Mbps broadband', () => {

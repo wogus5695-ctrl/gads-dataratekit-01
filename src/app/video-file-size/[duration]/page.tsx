@@ -83,10 +83,10 @@ export default function VideoFileSizeScenarioPage({ params }: Props) {
 
       {/* Comparison Table Across Bitrates and Resolutions */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>{data.durationLabel} File Size Across Common Video Profiles</h2>
+        <h2 className={styles.sectionTitle}>{data.durationLabel} Video File Size Across Common Profiles</h2>
         <div className={styles.prose}>
           <p>
-            Video storage requirements are determined by the combined bitrates of the video stream and audio track over time. The table below outlines expected file sizes for a <strong>{data.durationLabel}</strong> video across common resolutions and recording bitrates:
+            Video storage requirements are determined by the combined bitrates of the video stream and audio track over time. The table below outlines expected file sizes for a <strong>{data.durationLabel.toLowerCase()}</strong> video across common resolutions and recording bitrates:
           </p>
         </div>
         <div className={styles.tableWrapper}>
@@ -120,7 +120,7 @@ export default function VideoFileSizeScenarioPage({ params }: Props) {
         <h2 className={styles.sectionTitle}>Maximum Allowable Bitrate for Storage Constraints</h2>
         <div className={styles.prose}>
           <p>
-            If you need a {data.durationLabel} video to stay under a specific file size ceiling (such as an email attachment, memory card allocation, or FAT32 4 GB single-file limit), your encoding bitrate must not exceed:
+            If you need a {data.durationLabel.toLowerCase()} video to stay under a specific file size ceiling (such as an email attachment, memory card allocation, or FAT32 4 GB single-file limit), your encoding bitrate must not exceed:
           </p>
         </div>
         <div className={styles.tableWrapper}>
@@ -165,7 +165,7 @@ export default function VideoFileSizeScenarioPage({ params }: Props) {
 
       {/* Practical Considerations */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Practical Video Recording Considerations for {data.durationLabel}</h2>
+        <h2 className={styles.sectionTitle}>Practical Video Recording Considerations for {data.durationLabel} Recordings</h2>
         <div className={styles.prose}>
           <ul>
             {data.contextNotes.map((note, idx) => (
@@ -182,7 +182,7 @@ export default function VideoFileSizeScenarioPage({ params }: Props) {
           Use our interactive Video File Size Calculator to test custom runtimes, find required bitrates for email attachments, and calculate maximum recording time on memory cards.
         </p>
         <Link href={`/video-file-size-calculator${data.calculatorQuery}`} className={styles.ctaButton}>
-          Open Interactive Video Calculator with {data.durationLabel} Prefilled →
+          Open Interactive Video Calculator with {data.durationLabel} Video Prefilled →
         </Link>
       </section>
 
