@@ -29,6 +29,17 @@ const UPLOAD_DEFS: UploadScenarioDef[] = [
     ],
   },
   {
+    slug: '20gb',
+    sizeGb: 20,
+    sizeFormatted: '20 GB',
+    typicalUse: 'multi-part YouTube 4K uploads, professional drone footage batches, RAW photography client galleries, and software build artifacts',
+    practicalConsiderations: [
+      'On a standard 20 Mbps residential cable upload line, uploading 20 GB takes roughly 2 hours 13 minutes at full theoretical line rate, or approx. 2h 54m with 15% bandwidth reserved.',
+      'At 10 Mbps upstream (common on entry broadband plans), 20 GB requires nearly 4.5 hours, occupying significant network capacity.',
+      'Upgrading to symmetric fiber broadband (100 Mbps upload) reduces 20 GB upload duration to approximately 26 minutes.',
+    ],
+  },
+  {
     slug: '50gb',
     sizeGb: 50,
     sizeFormatted: '50 GB',
@@ -51,6 +62,18 @@ const UPLOAD_DEFS: UploadScenarioDef[] = [
     ],
   },
   {
+    slug: '500gb',
+    sizeGb: 500,
+    sizeFormatted: '500 GB',
+    typicalUse: 'large initial NAS cloud backup syncs, complete creative project asset archives, enterprise server VM snapshots, and multi-track audio/video masters',
+    practicalConsiderations: [
+      'Uploading 500 GB over a 20 Mbps asymmetric cable connection requires approximately 55.5 hours (over 2.3 continuous days), or nearly 70 hours with network reserve.',
+      'On 100 Mbps symmetric fiber, 500 GB completes in roughly 11 hours 6 minutes, making overnight or weekend batch windows realistic.',
+      'Gigabit fiber (1 Gbps upstream) compresses 500 GB to approximately 1 hour 6 minutes at full line saturation.',
+      'Sustained multi-day uploads risk residential ISP throttling or automated session resets; using pause/resume capable protocols (e.g., rsync, AWS S3 multipart upload) is strongly recommended.',
+    ],
+  },
+  {
     slug: '1tb',
     sizeGb: 1000,
     sizeFormatted: '1 TB',
@@ -60,6 +83,18 @@ const UPLOAD_DEFS: UploadScenarioDef[] = [
       'At 100 Mbps upstream, 1 TB still requires over 22 to 27 hours of uninterrupted transmission.',
       'Even on 1 Gbps symmetric fiber, uploading 1 TB takes roughly 2 hours 13 minutes at full throughput.',
       'Many cloud providers impose daily ingestion limits (e.g. Google Drive 750 GB/day upload limit), requiring multi-day staged batch uploads.',
+    ],
+  },
+  {
+    slug: '2tb',
+    sizeGb: 2000,
+    sizeFormatted: '2 TB',
+    typicalUse: 'complete drive mirror seeding, enterprise disaster recovery archives, massive historical video libraries, and multi-terabyte database migrations',
+    practicalConsiderations: [
+      'Uploading 2 TB over an asymmetric 20 Mbps cable plan takes over 9 days of continuous transmission (approx. 222 hours dedicated, or ~280 hours with 15% reserve).',
+      'Even on 100 Mbps fiber upload, 2 TB requires nearly 44.5 hours (almost 2 full days of nonstop transfer).',
+      'On Gigabit symmetric fiber (1 Gbps), 2 TB completes in approximately 4 hours 26 minutes.',
+      'Daily cloud provider ingest throttles (such as Google Drive 750 GB/day ceiling) will force a 2 TB upload to be spread across a minimum of 3 consecutive days regardless of line speed.',
     ],
   },
 ];

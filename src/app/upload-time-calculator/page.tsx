@@ -310,19 +310,31 @@ export default function UploadCalculatorPage() {
         </div>
         <nav className={styles.relatedTools} aria-label="Common upload calculations">
           <Link href="/upload-time/10gb" className={styles.relatedLink}>
-            10 GB Upload Time
+            10 GB
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/upload-time/20gb" className={styles.relatedLink}>
+            20 GB
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/upload-time/50gb" className={styles.relatedLink}>
-            50 GB Upload Time
+            50 GB
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/upload-time/100gb" className={styles.relatedLink}>
-            100 GB Upload Time
+            100 GB
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/upload-time/500gb" className={styles.relatedLink}>
+            500 GB
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/upload-time/1tb" className={styles.relatedLink}>
-            1 TB Upload Time
+            1 TB
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/upload-time/2tb" className={styles.relatedLink}>
+            2 TB
           </Link>
         </nav>
       </section>

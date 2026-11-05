@@ -328,16 +328,47 @@ export default function VideoCalculatorPage() {
         </h2>
         <div className={styles.prose}>
           <p>
-            Review detailed bitrate, resolution, and storage budget tables for common video runtimes:
+            Review detailed bitrate, resolution, and storage budget tables by video runtime and reference profile:
           </p>
         </div>
-        <nav className={styles.relatedTools} aria-label="Common video calculations">
+        <div style={{ marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          By Video Runtime:
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common video calculations by runtime">
           <Link href="/video-file-size/10-minutes" className={styles.relatedLink}>
-            10-Minute Video File Size
+            10-Minute Video
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/video-file-size/1-hour" className={styles.relatedLink}>
-            1 Hour Video File Size
+            1 Hour Video
+          </Link>
+        </nav>
+        <div style={{ marginTop: '1rem', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          By Reference Resolution Profile (per Hour):
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common video calculations by profile">
+          <Link href="/video-file-size/720p-per-hour" className={styles.relatedLink}>
+            720p
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size/1080p-per-hour" className={styles.relatedLink}>
+            1080p
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size/1080p-60fps-per-hour" className={styles.relatedLink}>
+            1080p 60fps
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size/1440p-per-hour" className={styles.relatedLink}>
+            1440p
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size/4k-per-hour" className={styles.relatedLink}>
+            4K
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/video-file-size/4k-60fps-per-hour" className={styles.relatedLink}>
+            4K 60fps
           </Link>
         </nav>
       </section>

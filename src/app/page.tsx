@@ -389,24 +389,63 @@ export default function DownloadCalculatorPage() {
         </h2>
         <div className={styles.prose}>
           <p>
-            Explore detailed transfer breakdowns across home broadband plans (25 Mbps to 2.5 Gbps) for common file sizes:
+            Explore detailed transfer breakdowns across home broadband plans (25 Mbps to 2.5 Gbps) by file size and connection speed:
           </p>
         </div>
-        <nav className={styles.relatedTools} aria-label="Common download calculations">
+        <div style={{ marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          By File Size:
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common download calculations by file size">
+          <Link href="/download-time/5gb" className={styles.relatedLink}>
+            5 GB
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/download-time/10gb" className={styles.relatedLink}>
-            10 GB Download Time
+            10 GB
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-time/20gb" className={styles.relatedLink}>
+            20 GB
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/download-time/50gb" className={styles.relatedLink}>
-            50 GB Download Time
+            50 GB
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/download-time/100gb" className={styles.relatedLink}>
-            100 GB Download Time
+            100 GB
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-time/500gb" className={styles.relatedLink}>
+            500 GB
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/download-time/1tb" className={styles.relatedLink}>
-            1 TB Download Time
+            1 TB
+          </Link>
+        </nav>
+        <div style={{ marginTop: '1rem', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          By Connection Speed:
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common download calculations by connection speed">
+          <Link href="/download-speed/50mbps" className={styles.relatedLink}>
+            50 Mbps
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-speed/100mbps" className={styles.relatedLink}>
+            100 Mbps
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-speed/300mbps" className={styles.relatedLink}>
+            300 Mbps
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-speed/500mbps" className={styles.relatedLink}>
+            500 Mbps
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/download-speed/1gbps" className={styles.relatedLink}>
+            1 Gbps
           </Link>
         </nav>
       </section>

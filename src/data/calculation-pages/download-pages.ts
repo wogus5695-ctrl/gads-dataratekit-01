@@ -18,6 +18,17 @@ interface DownloadScenarioDef {
 
 const DOWNLOAD_DEFS: DownloadScenarioDef[] = [
   {
+    slug: '5gb',
+    sizeGb: 5,
+    sizeFormatted: '5 GB',
+    typicalUse: 'standard definition or 1080p video downloads, software development kits, OS recovery images, and utility applications',
+    practicalConsiderations: [
+      'At 100 Mbps broadband, a 5 GB download finishes in roughly 7 minutes 25 seconds at 90% planning efficiency (6m 40s theoretical).',
+      'Threshold comparison: On an entry-level 25 Mbps connection, 5 GB requires nearly 30 minutes, whereas 500 Mbps or Gigabit broadband compresses it to under 2 minutes.',
+      'Shorter transfers like 5 GB usually complete before remote CDN throttling or background home network competition causes noticeable variance.',
+    ],
+  },
+  {
     slug: '10gb',
     sizeGb: 10,
     sizeFormatted: '10 GB',
@@ -26,6 +37,17 @@ const DOWNLOAD_DEFS: DownloadScenarioDef[] = [
       'At 100 Mbps broadband, a 10 GB file finishes in under 15 minutes (approx. 14m 49s at 90% efficiency).',
       'Remote origin throttling rarely caps 10 GB downloads compared to 100 GB+ files, making full line saturation likely.',
       'Wi-Fi packet retransmissions can extend download duration by 10-25% on 2.4 GHz connections.',
+    ],
+  },
+  {
+    slug: '20gb',
+    sizeGb: 20,
+    sizeFormatted: '20 GB',
+    typicalUse: 'mid-sized modern games, large software suites, 4K film media files, and virtual machine containers',
+    practicalConsiderations: [
+      'On standard 100 Mbps broadband, a 20 GB download takes approximately 29 minutes 38 seconds at 90% planning efficiency (26m 40s theoretical).',
+      'Speed threshold impact: A lower-tier 25 Mbps plan takes nearly 2 hours (approx. 1h 58m), while upgrading to 500 Mbps compresses the wait to under 6 minutes.',
+      'Shared household bandwidth: Active video streaming or background cloud syncing during a 20 GB download can extend completion time by 20% to 35% on asymmetric connections.',
     ],
   },
   {
@@ -48,6 +70,18 @@ const DOWNLOAD_DEFS: DownloadScenarioDef[] = [
       'At 100 Mbps, downloading 100 GB takes nearly 2.5 hours (2h 28m at 90% planning efficiency).',
       'Upgrading to 500 Mbps drops download time to approximately 30 minutes, while Gigabit finishes in under 15 minutes.',
       'Commercial game client delivery servers (Steam, Battle.net, PlayStation Network) often cap outbound single-client speeds between 30 MB/s and 70 MB/s during peak release windows.',
+    ],
+  },
+  {
+    slug: '500gb',
+    sizeGb: 500,
+    sizeFormatted: '500 GB',
+    typicalUse: 'large game library reinstalls, multi-project video editing assets, comprehensive system backups, and database migrations',
+    practicalConsiderations: [
+      'Downloading 500 GB on 100 Mbps broadband requires over 12 hours (approx. 12h 20m 44s at 90% planning efficiency), making overnight scheduling essential.',
+      'Gigabit broadband (1 Gbps) finishes 500 GB in roughly 1 hour 14 minutes, provided the remote delivery network sustains full line throughput.',
+      'ISP data allowances: Many residential providers impose 1.2 TB monthly data caps; downloading 500 GB consumes over 40% of the entire monthly ceiling in a single transfer.',
+      'Remote CDN bottlenecks: Origin distribution servers frequently cap single-connection throughput during peak hours, preventing 500 Mbps and 1 Gbps lines from running at maximum theoretical speed.',
     ],
   },
   {

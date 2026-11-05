@@ -413,16 +413,47 @@ export default function FileTransferCalculatorPage() {
         </h2>
         <div className={styles.prose}>
           <p>
-            Review 3-stage hardware bottleneck and duration breakdowns across SSD, USB, and LAN/NAS pipelines for large payloads:
+            Review 3-stage hardware bottleneck and duration breakdowns across SSD, USB, and LAN/NAS pipelines:
           </p>
         </div>
-        <nav className={styles.relatedTools} aria-label="Common file transfer calculations">
+        <div style={{ marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          By Payload Size:
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common file transfer calculations by payload size">
           <Link href="/file-transfer-time/100gb" className={styles.relatedLink}>
-            100 GB File Transfer Time
+            100 GB Transfer
           </Link>
           <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
           <Link href="/file-transfer-time/1tb" className={styles.relatedLink}>
-            1 TB File Transfer Time
+            1 TB Transfer
+          </Link>
+        </nav>
+        <div style={{ marginTop: '1rem', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Storage Drive Scenarios:
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common file transfer calculations by hardware scenario">
+          <Link href="/file-transfer-time/ssd-to-hdd" className={styles.relatedLink}>
+            SSD to HDD Transfer
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/file-transfer-time/ssd-to-ssd" className={styles.relatedLink}>
+            SSD to SSD Transfer
+          </Link>
+        </nav>
+        <div style={{ marginTop: '1rem', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          NAS & Local Network Transfers:
+        </div>
+        <nav className={styles.relatedTools} aria-label="Common file transfer calculations by NAS speed">
+          <Link href="/nas-transfer-time/1gbe" className={styles.relatedLink}>
+            1GbE NAS Transfer
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/nas-transfer-time/2-5gbe" className={styles.relatedLink}>
+            2.5GbE NAS Transfer
+          </Link>
+          <span style={{ color: 'var(--border-strong)', margin: '0 0.5rem' }}>·</span>
+          <Link href="/nas-transfer-time/10gbe" className={styles.relatedLink}>
+            10GbE NAS Transfer
           </Link>
         </nav>
       </section>
