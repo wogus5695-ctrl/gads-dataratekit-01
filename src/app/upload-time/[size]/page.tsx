@@ -67,7 +67,7 @@ export default function UploadTimeScenarioPage({ params }: Props) {
             <span className={styles.metricValue}>{data.defaultSpeedLabel}</span>
           </div>
           <div className={styles.metricBox}>
-            <span className={styles.metricLabel}>Planned Duration (with reserve)</span>
+            <span className={styles.metricLabel}>Planned Duration (15% reserve)</span>
             <span className={styles.metricValue}>{data.defaultPlannedDuration}</span>
           </div>
           <div className={styles.metricBox}>

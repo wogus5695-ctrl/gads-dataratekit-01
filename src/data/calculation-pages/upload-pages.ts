@@ -193,7 +193,7 @@ export function getUploadPageData(slug: string): UploadPageData | null {
     slug: def.slug,
     sizeGb: def.sizeGb,
     sizeFormatted: def.sizeFormatted,
-    title: `How Long Does ${def.sizeFormatted} Take to Upload? Speed & Duration Guide | DataRateKit`,
+    title: `How Long Does ${def.sizeFormatted} Take to Upload? Speed & Duration Guide`,
     metaDescription: `Calculate upload duration for ${def.sizeFormatted} at 5 Mbps, 10 Mbps, 20 Mbps, 100 Mbps, and 1 Gbps with bandwidth reserve planning and deadline calculations.`,
     h1: `How Long Does ${def.sizeFormatted} Take to Upload?`,
     directAnswerSummary: `On a typical 20 Mbps home cable upstream connection, uploading ${def.sizeFormatted} takes approximately ${defaultBaseline.formattedDurationShort} with 15% bandwidth reserved for network responsiveness (${pureBaseline.formattedDurationShort} at 100% dedicated line rate). On 100 Mbps fiber upload, it takes roughly ${comparisonRows.find((r) => r.speedLabel === '100 Mbps')?.plannedDurationWithReserve || 'under 20 minutes'}.`,

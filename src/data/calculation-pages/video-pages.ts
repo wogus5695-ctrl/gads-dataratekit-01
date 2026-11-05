@@ -137,7 +137,7 @@ export function getVideoPageData(slug: string): VideoPageData | null {
     durationLabel: def.durationLabel,
     durationSeconds: def.durationSeconds,
     audioBitrateKbps: def.audioBitrateKbps,
-    title: `How Large is a ${def.durationLabel} Video? Bitrate & Size Guide | DataRateKit`,
+    title: `How Large is a ${def.durationLabel} Video? Bitrate & Size Guide`,
     metaDescription: `Compare ${def.durationLabel} video file sizes from 720p (2 Mbps) to 4K (50-100 Mbps) with reverse bitrate storage budgets and memory card requirements.`,
     h1: `How Large is a ${def.durationLabel} Video File?`,
     directAnswerSummary: `A ${def.durationLabel} video recorded at standard 1080p web bitrate (5 Mbps video + ${def.audioBitrateKbps} kbps audio) is approximately ${baseline.calculatedFileSize} (${baseline.storagePerMinute}). In high-quality 4K at 50 Mbps, the same duration consumes ${bitrateRows[4].calculatedFileSize}.`,

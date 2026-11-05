@@ -162,7 +162,7 @@ export function getDownloadPageData(slug: string): DownloadPageData | null {
     slug: def.slug,
     sizeGb: def.sizeGb,
     sizeFormatted: def.sizeFormatted,
-    title: `How Long Does ${def.sizeFormatted} Take to Download? Speed Comparison | DataRateKit`,
+    title: `How Long Does ${def.sizeFormatted} Take to Download? Speed Comparison`,
     metaDescription: `Find out how long ${def.sizeFormatted} takes to download at 25 Mbps, 50 Mbps, 100 Mbps, 500 Mbps, and 1 Gbps, plus required speeds for target deadlines.`,
     h1: `How Long Does ${def.sizeFormatted} Take to Download?`,
     directAnswerSummary: `On a standard 100 Mbps broadband connection, downloading ${def.sizeFormatted} takes approximately ${defaultBaseline.formattedDurationShort} at 90% planning efficiency (${defaultBaseline.formattedTheoreticalDurationShort} theoretical). At 1 Gbps Gigabit speed, it takes roughly ${comparisonRows.find((r) => r.speedLabel === '1 Gbps')?.planningDuration || 'under 15 minutes'}.`,

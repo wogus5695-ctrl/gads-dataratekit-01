@@ -134,4 +134,20 @@ test('Programmatic SEO Answer Pilot — Registry & Route Coverage', async (t) =>
     assert.equal(row100mbps.planningDuration, '2h 28m 9s');
     assert.equal(row100mbps.effectiveMBs, '11.25 MB/s');
   });
+
+  await t.test('8. Page-level titles do not contain duplicate DataRateKit branding suffix', () => {
+    const allPages = [
+      ...DOWNLOAD_PAGES,
+      ...UPLOAD_PAGES,
+      ...FILE_TRANSFER_PAGES,
+      ...VIDEO_PAGES,
+    ];
+    assert.equal(allPages.length, 12);
+    for (const page of allPages) {
+      assert.ok(
+        !page.title.includes('DataRateKit'),
+        `Page-level title for ${page.slug} should not contain 'DataRateKit' (root layout template appends it): "${page.title}"`
+      );
+    }
+  });
 });

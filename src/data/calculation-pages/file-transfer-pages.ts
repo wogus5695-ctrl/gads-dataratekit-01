@@ -209,7 +209,7 @@ export function getFileTransferPageData(slug: string): FileTransferPageData | nu
     slug: def.slug,
     sizeGb: def.sizeGb,
     sizeFormatted: def.sizeFormatted,
-    title: `How Long Does It Take to Transfer ${def.sizeFormatted}? SSD, USB & LAN Guide | DataRateKit`,
+    title: `How Long Does It Take to Transfer ${def.sizeFormatted}? SSD, USB & LAN Guide`,
     metaDescription: `Compare ${def.sizeFormatted} transfer times across NVMe SSDs, USB 3.0 drives, 1GbE, 2.5GbE, and 10GbE NAS connections with 3-stage bottleneck diagnosis.`,
     h1: `How Long Does It Take to Transfer ${def.sizeFormatted}?`,
     directAnswerSummary: `Transferring ${def.sizeFormatted} over standard Gigabit Ethernet (1 Gbps) takes approximately ${baseline.transferDuration} at 85% planning efficiency (${baseline.sustainedThroughput}), limited by the 1 Gbps network bus. Between internal NVMe PCIe 4.0 SSDs, the transfer completes in just ${scenarios[0].transferDuration}.`,
